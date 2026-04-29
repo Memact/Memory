@@ -180,10 +180,28 @@ Run sample:
 npm run sample
 ```
 
+View schema packets as a terminal graph:
+
+```powershell
+npm run sample:graph
+```
+
+View the same schema packet graph as Mermaid:
+
+```powershell
+npm run sample:mermaid
+```
+
 Build memory JSON:
 
 ```powershell
 npm run memory -- --inference ..\inference-output.json --schema ..\schema-output.json --format json
+```
+
+Build a schema packet graph from your own Inference and Schema outputs:
+
+```powershell
+npm run memory -- --inference ..\inference-output.json --schema ..\schema-output.json --format graph
 ```
 
 Build a RAG context for a thought:

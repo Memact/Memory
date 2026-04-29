@@ -35,6 +35,8 @@
     "check": "node ./scripts/check.mjs",
     "memory": "node ./src/cli.mjs",
     "sample": "node ./src/cli.mjs --inference examples/sample-inference-output.json --schema examples/sample-schema-output.json --format report",
-    "sample:json": "node ./src/cli.mjs --inference examples/sample-inference-output.json --schema examples/sample-schema-output.json --format json"
+    "sample:json": "node ./src/cli.mjs --inference examples/sample-inference-output.json --schema examples/sample-schema-output.json --format json",
+    "sample:graph": "node ./src/cli.mjs --inference examples/sample-inference-output.json --schema examples/sample-schema-output.json --format graph",
+    "sample:mermaid": "node ./src/cli.mjs --inference examples/sample-inference-output.json --schema examples/sample-schema-output.json --format mermaid"
   }
 }
