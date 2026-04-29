@@ -13,7 +13,7 @@ Memory stores meaningful activity packets and virtual cognitive-schema packets. 
 ## Pipeline Position
 
 ```text
-Capture -> Inference -> Memory -> Schema -> Interface / Query -> Origin / Influence -> Action -> Memory
+Capture -> Inference -> Schema -> Memory -> Website / Query -> Origin / Influence -> Action -> Memory
 ```
 
 Memory sits after Schema because raw activity should not automatically survive as long-term memory. Inference decides what is meaningful. Schema induces virtual cognitive schemas. Memory decides what persists, merges, strengthens, fades, gets retrieved, or gets forgotten.
@@ -46,19 +46,42 @@ listMemories(filters)
 updateMemory(id, patch)
 deleteMemory(id, { hard })
 buildRagContext(query, memoryStore)
+queryMemoryGraph(query, memoryStore)
 rememberPacket(packet)
 rememberSchema(schema)
 retrieveCognitiveSchemas(query)
 retrieveMemories(query)
+relateMemories(a, b, relation)
 linkMemories(a, b)
+assimilateEvidence(id, evidence)
+accommodateSchema(memory, evidence)
+supersedeMemory(id, replacement, reason)
 reinforceMemory(id, evidence)
 weakenMemory(id, reason)
 forgetMemory(id)
 explainMemory(id)
 getMemoryGraph()
+getMemoryTimeline()
 ```
 
-`buildRagContext()` is the retrieval packet for answer generation. It prefers cognitive-schema memory, then attaches supporting activity/source memories. Gemini or another model can receive this minimized context, but not the full captured activity store.
+`buildRagContext()` is the retrieval packet for answer generation. It prefers cognitive-schema memory, then attaches supporting activity/source memories, memory lanes, and relation trails. Gemini or another model can receive this minimized context, but not the full captured activity store.
+
+## Cognitive Schema Lifecycle
+
+Memory now treats schemas as living packets:
+
+- `assimilateEvidence()`
+  Adds new evidence into an existing schema when it fits.
+- `accommodateSchema()`
+  Creates a new schema when evidence does not fit an existing frame.
+- `supersedeMemory()`
+  Preserves an older schema while marking a newer one as the replacement.
+- `relateMemories()`
+  Links memories with typed relation trails such as `builds_on`, `contradicts`, `triggers`, `supports`, `assimilates`, and `supersedes`.
+- `queryMemoryGraph()`
+  Retrieves memories plus the relation trails around them.
+
+This is the core Memact idea: not a static list of sources, but a virtual cognitive-schema memory that changes as new activity keeps shaping the user's frames.
 
 ## Controlled Memory Actions
 
@@ -75,6 +98,16 @@ Memory is storage-agnostic. The engine works on a plain memory store object. `sr
 - `createMemoryRepository(adapter)`
 
 This keeps the future open for Google Drive, Supabase, S3, user-owned cloud storage, or encrypted local-first sync. The storage layer can save/retrieve memory stores, but it must not bypass CRUD, provenance, or RAG policy.
+
+## Reference Research Used
+
+The Memory layer was strengthened after reviewing external memory systems. Ideas were translated into Memact-native code; no source code was copied.
+
+- AgenticMemory inspired append-only action history, decision lineage, supersession, and multi-index retrieval thinking.
+- MemoryGraph inspired typed relationships, time-valid links, and graph traversal around memories.
+- Hindsight inspired separating activity memories from higher-level mental-model/schema memories.
+- ReMe inspired compaction/refinement as a memory lifecycle instead of one-shot storage.
+- Mozilla Readability reinforced Capture's rule: extract meaningful page content, not browser chrome or noise.
 
 ## Public Output Contract
 
@@ -110,6 +143,14 @@ This keeps the future open for Google Drive, Supabase, S3, user-owned cloud stor
     "nodes": [],
     "edges": []
   },
+  "relations": [
+    {
+      "from": "memory:schema:builder_agency",
+      "to": "memory:activity:packet-act-1",
+      "type": "assimilates",
+      "weight": 0.74
+    }
+  ],
   "actions": []
 }
 ```
@@ -157,6 +198,7 @@ npm run memory -- --inference examples\sample-inference-output.json --schema exa
 - memory stores what survives after deterministic gates
 - cognitive-schema memories are virtual schema mirrors, not diagnoses
 - RAG starts from cognitive-schema memory and returns a minimized evidence packet
+- relation trails are part of retrieval, not AI-generated decoration
 - CRUD actions are explicit and auditable
 - storage adapters must not bypass memory policy
 - retrieval should prefer cognitive-schema memory first, then use activity/source packets as evidence
