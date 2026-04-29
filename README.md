@@ -8,7 +8,7 @@ It answers:
 
 `What should survive across future interactions, models, and apps?`
 
-Memory stores meaningful activity packets and virtual schema packets. It does not store random browsing as memory. It keeps provenance, strength, decay, and graph links so future models and apps can act from evidence instead of guessing.
+Memory stores meaningful activity packets and virtual cognitive-schema packets. It does not store random browsing as memory. It keeps provenance, strength, decay, and graph links so future models and apps can act from evidence instead of guessing.
 
 ## Pipeline Position
 
@@ -22,8 +22,8 @@ Memory sits after Inference because raw activity should not automatically surviv
 
 - `activity_memory`
   Meaningful activity packets from Inference.
-- `schema_memory`
-  Virtual cognitive-schema packets from Schema.
+- `cognitive_schema_memory`
+  Virtual cognitive-schema packets from Schema. This is the primary retrieval surface for answering user questions.
 - `source_memory`
   Source nodes that support memories.
 - `theme_memory`
@@ -38,6 +38,7 @@ Models and apps can propose memory actions, but Memory validates them determinis
 ```text
 rememberPacket(packet)
 rememberSchema(schema)
+retrieveCognitiveSchemas(query)
 retrieveMemories(query)
 linkMemories(a, b)
 reinforceMemory(id, evidence)
@@ -69,8 +70,10 @@ The model can act on memory, but it should not freely rewrite memory. Every acti
   "schema_packets": [
     {
       "id": "memory:schema:builder_agency",
-      "type": "schema_memory",
+      "type": "cognitive_schema_memory",
       "label": "Builder / agency schema",
+      "virtual": true,
+      "cognitive_schema": true,
       "strength": 0.72,
       "support": 4
     }
@@ -118,7 +121,8 @@ npm run memory -- --inference ..\inference-output.json --schema ..\schema-output
 
 - memory is not raw storage
 - memory stores what survives after deterministic gates
-- schema memories are virtual cognitive-schema packets, not diagnoses
+- cognitive-schema memories are virtual schema mirrors, not diagnoses
+- retrieval should prefer cognitive-schema memory first, then use activity/source packets as evidence
 - every memory must keep provenance
 - actions are explicit and auditable
 - models can propose, Memory validates

@@ -155,9 +155,11 @@ function schemaMemoryFromSchema(schema) {
 
   return {
     id: `memory:schema:${slug(id)}`,
-    type: "schema_memory",
+    type: "cognitive_schema_memory",
     label: normalize(schema.label || id, 160),
     summary: normalize(schema.summary, 360),
+    virtual: true,
+    cognitive_schema: true,
     strength,
     survival_score: strength,
     schema_id: id,
@@ -172,7 +174,7 @@ function schemaMemoryFromSchema(schema) {
     sources: dedupeSources(evidenceRecords.flatMap((record) => record.sources || [])),
     provenance: {
       system: "schema",
-      claim_type: "schema_packet",
+      claim_type: "virtual_cognitive_schema_packet",
       schema_id: id,
       guardrail: normalize(schema.language_guardrail),
     },
@@ -199,7 +201,7 @@ function decayMemory(memory, options = {}) {
 function mergeDuplicateMemories(memories) {
   const byKey = new Map();
   for (const memory of memories) {
-    const key = memory.type === "schema_memory"
+    const key = isSchemaMemory(memory)
       ? `${memory.type}|${memory.schema_id}`
       : `${memory.type}|${memory.source_packet_id || memory.label}`;
     const existing = byKey.get(key);
@@ -259,7 +261,7 @@ function buildMemoryGraph(memories) {
       edges.push({ from: memory.id, to: sourceId, type: "supported_by_source", weight: 1 });
     }
 
-    if (memory.type === "schema_memory") {
+    if (isSchemaMemory(memory)) {
       for (const packetId of memory.evidence_packet_ids || []) {
         const activityId = `memory:activity:${slug(packetId)}`;
         edges.push({ from: memory.id, to: activityId, type: "supported_by_packet", weight: memory.strength });
@@ -309,13 +311,14 @@ export function buildMemoryStore({ inference, schema, previousMemory = null, opt
     },
     memories: merged,
     activity_memories: merged.filter((memory) => memory.type === "activity_memory"),
-    schema_packets: merged.filter((memory) => memory.type === "schema_memory"),
+    schema_packets: merged.filter(isSchemaMemory),
+    cognitive_schema_memories: merged.filter(isSchemaMemory),
     graph,
     actions: Array.isArray(previousMemory?.actions) ? previousMemory.actions : [],
     stats: {
       memoryCount: merged.length,
       activityMemoryCount: merged.filter((memory) => memory.type === "activity_memory").length,
-      schemaMemoryCount: merged.filter((memory) => memory.type === "schema_memory").length,
+      schemaMemoryCount: merged.filter(isSchemaMemory).length,
       sourceCount: graph.nodes.filter((node) => node.type === "source_memory").length,
     },
   };
@@ -328,7 +331,7 @@ export function retrieveMemories(query, memoryStore, options = {}) {
   return memories
     .map((memory) => {
       const lexical = overlapScore(query, memory);
-      const score = clamp((lexical * 0.62) + (Number(memory.strength || 0) * 0.32) + (memory.type === "schema_memory" ? 0.06 : 0));
+      const score = clamp((lexical * 0.56) + (Number(memory.strength || 0) * 0.34) + (isSchemaMemory(memory) ? 0.1 : 0));
       return {
         ...memory,
         retrieval_score: score,
@@ -340,6 +343,16 @@ export function retrieveMemories(query, memoryStore, options = {}) {
     .filter((memory) => memory.retrieval_score >= minScore)
     .sort((left, right) => right.retrieval_score - left.retrieval_score || right.strength - left.strength)
     .slice(0, top);
+}
+
+export function retrieveCognitiveSchemas(query, memoryStore, options = {}) {
+  return retrieveMemories(query, {
+    ...memoryStore,
+    memories: (memoryStore?.memories || []).filter(isSchemaMemory),
+  }, {
+    top: Number(options.top ?? 4),
+    minScore: Number(options.minScore ?? 0.12),
+  });
 }
 
 export function rememberPacket(packet, memoryStore = {}, options = {}) {
@@ -455,7 +468,7 @@ export function formatMemoryReport(memoryStore = {}) {
     "Memact Memory Report",
     `Memories: ${memoryStore.stats?.memoryCount || 0}`,
     `Activity memories: ${memoryStore.stats?.activityMemoryCount || 0}`,
-    `Schema memories: ${memoryStore.stats?.schemaMemoryCount || 0}`,
+    `Cognitive schema memories: ${memoryStore.stats?.schemaMemoryCount || 0}`,
     "",
     "Strongest Memories",
   ];
@@ -487,14 +500,15 @@ function applyMemoryAction(memoryStore, action, mutate) {
     ...memoryStore,
     memories,
     activity_memories: memories.filter((memory) => memory.type === "activity_memory"),
-    schema_packets: memories.filter((memory) => memory.type === "schema_memory"),
+    schema_packets: memories.filter(isSchemaMemory),
+    cognitive_schema_memories: memories.filter(isSchemaMemory),
     graph: buildMemoryGraph(memories),
     actions: [...(memoryStore.actions || []), finalAction],
     stats: {
       ...(memoryStore.stats || {}),
       memoryCount: memories.length,
       activityMemoryCount: memories.filter((memory) => memory.type === "activity_memory").length,
-      schemaMemoryCount: memories.filter((memory) => memory.type === "schema_memory").length,
+      schemaMemoryCount: memories.filter(isSchemaMemory).length,
     },
   };
   return { memoryStore: next, action: finalAction };
@@ -503,8 +517,12 @@ function applyMemoryAction(memoryStore, action, mutate) {
 function formatReasons(memory) {
   const reasons = unique([
     ...(memory.reasons || []),
-    memory.provenance?.claim_type === "schema_packet" ? `${memory.support || 0} supporting packets` : "",
+    isSchemaMemory(memory) ? `${memory.support || 0} supporting packets` : "",
     memory.sources?.length ? `${memory.sources.length} source${memory.sources.length === 1 ? "" : "s"}` : "",
   ]);
   return reasons.length ? reasons.join(", ") : "it has retained evidence";
+}
+
+function isSchemaMemory(memory) {
+  return memory?.type === "cognitive_schema_memory" || memory?.type === "schema_memory";
 }
