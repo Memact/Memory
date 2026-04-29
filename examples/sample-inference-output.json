@@ -1,0 +1,45 @@
+{
+  "schema_version": "memact.inference.v0",
+  "records": [
+    {
+      "id": "act_1",
+      "packet_id": "packet:act_1",
+      "source_label": "YC founder interview about shipping MVPs",
+      "meaningful": true,
+      "meaningful_score": 0.68,
+      "meaning_reasons": ["matched startup theme", "sustained attention", "source can be cited"],
+      "canonical_themes": ["startup"],
+      "sources": [
+        {
+          "domain": "youtube.com",
+          "url": "https://youtube.com/watch?v=founder-mvp",
+          "title": "How founders ship MVPs quickly",
+          "occurred_at": "2026-04-01T09:00:00.000Z"
+        }
+      ],
+      "evidence": {
+        "text_excerpt": "YC founder interview about shipping MVPs and building something real."
+      }
+    },
+    {
+      "id": "act_2",
+      "packet_id": "packet:act_2",
+      "source_label": "Debugging GitHub project in terminal",
+      "meaningful": true,
+      "meaningful_score": 0.61,
+      "meaning_reasons": ["matched coding theme", "active interaction", "source can be cited"],
+      "canonical_themes": ["coding"],
+      "sources": [
+        {
+          "domain": "github.com",
+          "url": "https://github.com/Memact/Memory",
+          "title": "Memact Memory repository",
+          "occurred_at": "2026-04-01T10:00:00.000Z"
+        }
+      ],
+      "evidence": {
+        "text_excerpt": "Working on a GitHub repository and memory layer."
+      }
+    }
+  ]
+}

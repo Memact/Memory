@@ -1,0 +1,37 @@
+{
+  "name": "memact-memory",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Durable memory layer for Memact meaning packets, schema packets, and controlled memory actions.",
+  "license": "SEE LICENSE IN LICENSE",
+  "type": "module",
+  "main": "./src/engine.mjs",
+  "exports": {
+    ".": "./src/engine.mjs",
+    "./cli": "./src/cli.mjs"
+  },
+  "keywords": [
+    "memact",
+    "memory",
+    "schema-packets",
+    "meaning-packets",
+    "provenance"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Memact/Memory.git"
+  },
+  "homepage": "https://github.com/Memact/Memory",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "memact-memory": "./src/cli.mjs"
+  },
+  "scripts": {
+    "check": "node ./scripts/check.mjs",
+    "memory": "node ./src/cli.mjs",
+    "sample": "node ./src/cli.mjs --inference examples/sample-inference-output.json --schema examples/sample-schema-output.json --format report",
+    "sample:json": "node ./src/cli.mjs --inference examples/sample-inference-output.json --schema examples/sample-schema-output.json --format json"
+  }
+}

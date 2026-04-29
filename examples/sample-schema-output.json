@@ -1,0 +1,45 @@
+{
+  "schema_version": "memact.schema.v0",
+  "schemas": [
+    {
+      "id": "builder_agency",
+      "label": "Builder / agency schema",
+      "summary": "Interpreting progress through building, shipping, tools, and visible proof.",
+      "state": "emerging",
+      "state_label": "Emerging schema",
+      "matched_themes": ["startup", "coding"],
+      "support": 4,
+      "confidence": 0.72,
+      "evidence_records": [
+        {
+          "id": "act_1",
+          "packet_id": "packet:act_1",
+          "source_label": "YC founder interview about shipping MVPs",
+          "meaningful_score": 0.68,
+          "sources": [
+            {
+              "domain": "youtube.com",
+              "url": "https://youtube.com/watch?v=founder-mvp",
+              "title": "How founders ship MVPs quickly"
+            }
+          ]
+        },
+        {
+          "id": "act_2",
+          "packet_id": "packet:act_2",
+          "source_label": "Debugging GitHub project in terminal",
+          "meaningful_score": 0.61,
+          "sources": [
+            {
+              "domain": "github.com",
+              "url": "https://github.com/Memact/Memory",
+              "title": "Memact Memory repository"
+            }
+          ]
+        }
+      ],
+      "claim_type": "schema_signal",
+      "language_guardrail": "This is a possible schema signal, not a diagnosis or causal claim."
+    }
+  ]
+}
