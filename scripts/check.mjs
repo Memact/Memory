@@ -3,6 +3,7 @@ import {
   buildMemoryStore,
   forgetMemory,
   reinforceMemory,
+  retrieveCognitiveSchemas,
   retrieveMemories,
 } from "../src/engine.mjs";
 
@@ -25,6 +26,15 @@ if (!memory.graph.nodes.length || !memory.graph.edges.length) {
 const retrieval = retrieveMemories("why do I want to build something real", memory);
 if (!retrieval.length) {
   throw new Error("Expected memory retrieval results.");
+}
+
+const cognitiveRetrieval = retrieveCognitiveSchemas("why do I need to build something real", memory);
+if (!cognitiveRetrieval.length) {
+  throw new Error("Expected cognitive-schema retrieval results.");
+}
+
+if (!cognitiveRetrieval[0].schema_packet_id || cognitiveRetrieval[0].type !== "cognitive_schema_memory") {
+  throw new Error("Expected cognitive-schema memories to preserve schema packet identity.");
 }
 
 const reinforced = reinforceMemory(memory.memories[0].id, { sources: [] }, memory);

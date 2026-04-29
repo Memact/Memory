@@ -8,7 +8,7 @@ It answers:
 
 `What should survive across future interactions, models, and apps?`
 
-Memory stores meaningful activity packets and virtual cognitive-schema packets. It does not store random browsing as memory. It keeps provenance, strength, decay, and graph links so future models and apps can act from evidence instead of guessing.
+Memory stores meaningful activity packets and virtual cognitive-schema packets. It does not store random browsing as memory. It keeps provenance, strength, decay, formation metrics, and graph links so future models and apps can act from evidence instead of guessing.
 
 ## Pipeline Position
 
@@ -18,12 +18,14 @@ Capture -> Inference -> Memory -> Schema -> Interface / Query -> Origin / Influe
 
 Memory sits after Inference because raw activity should not automatically survive. Inference decides what is meaningful. Memory decides what persists, merges, strengthens, fades, or gets forgotten.
 
+In product terms, Memory is where Memact keeps the virtual cognitive schemas. These are not medical claims. They are evidence-backed mirrors of repeated frames that may be shaping how a user reads ideas, feelings, and decisions.
+
 ## What It Stores
 
 - `activity_memory`
   Meaningful activity packets from Inference.
 - `cognitive_schema_memory`
-  Virtual cognitive-schema packets from Schema. This is the primary retrieval surface for answering user questions.
+  Virtual cognitive-schema packets from Schema. This is the primary retrieval surface for answering user questions. It preserves the core interpretation, action tendency, emotional signature, marker groups, evidence packets, and source provenance.
 - `source_memory`
   Source nodes that support memories.
 - `theme_memory`
@@ -74,6 +76,8 @@ The model can act on memory, but it should not freely rewrite memory. Every acti
       "label": "Builder / agency schema",
       "virtual": true,
       "cognitive_schema": true,
+      "core_interpretation": "Progress feels real when it becomes built, shipped, or visible.",
+      "action_tendency": "move toward building, debugging, launching, proving, or showing work",
       "strength": 0.72,
       "support": 4
     }

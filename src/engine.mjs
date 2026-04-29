@@ -94,6 +94,11 @@ function overlapScore(query, memory) {
   const memoryTokens = tokenSet([
     memory.label,
     memory.summary,
+    memory.core_interpretation,
+    memory.action_tendency,
+    ...(memory.emotional_signature || []),
+    ...(memory.marker_categories || []),
+    ...(memory.matched_markers || []),
     ...(memory.themes || []),
     ...(memory.sources || []).map((source) => `${source.title} ${source.domain}`),
   ].join(" "));
@@ -145,36 +150,54 @@ function activityMemoryFromRecord(record, options = {}) {
 function schemaMemoryFromSchema(schema) {
   const id = normalize(schema?.id);
   if (!id) return null;
+  const packet = schema.virtual_schema_packet || schema.schema_packet || {};
   const evidenceRecords = Array.isArray(schema.evidence_records) ? schema.evidence_records : [];
   const evidenceStrength = evidenceRecords.length
     ? evidenceRecords.reduce((sum, record) => sum + Number(record.meaningful_score ?? 1), 0) / evidenceRecords.length
     : 0.5;
   const confidence = Number(schema.confidence ?? 0);
   const support = Number(schema.support ?? 0);
-  const strength = clamp((confidence * 0.54) + (Math.min(1, support / 8) * 0.26) + (evidenceStrength * 0.2));
+  const markerCategoryCount = Array.isArray(schema.marker_categories) ? schema.marker_categories.length : 0;
+  const markerCoverage = Math.min(1, markerCategoryCount / 3);
+  const strength = clamp((confidence * 0.48) + (Math.min(1, support / 8) * 0.22) + (evidenceStrength * 0.18) + (markerCoverage * 0.12));
+  const evidencePacketIds = unique([
+    ...(packet.evidence_packet_ids || []),
+    ...evidenceRecords.map((record) => normalize(record.packet_id || `packet:${record.id}`)),
+  ]);
+  const sources = dedupeSources([
+    ...(packet.sources || []),
+    ...evidenceRecords.flatMap((record) => record.sources || []),
+  ]);
 
   return {
     id: `memory:schema:${slug(id)}`,
     type: "cognitive_schema_memory",
-    label: normalize(schema.label || id, 160),
-    summary: normalize(schema.summary, 360),
+    label: normalize(packet.label || schema.label || id, 160),
+    summary: normalize(schema.summary || packet.summary, 360),
     virtual: true,
     cognitive_schema: true,
     strength,
     survival_score: strength,
     schema_id: id,
+    schema_packet_id: normalize(packet.id || `schema_packet:${id}`),
     schema_state: normalize(schema.state),
     state_label: normalize(schema.state_label),
+    core_interpretation: normalize(packet.core_interpretation || schema.core_interpretation, 280),
+    action_tendency: normalize(packet.action_tendency || schema.action_tendency, 240),
+    emotional_signature: unique(packet.emotional_signature || schema.emotional_signature),
+    marker_categories: unique(packet.marker_categories || schema.marker_categories),
+    matched_markers: unique(packet.matched_markers || schema.matched_markers),
+    formation_basis: normalize(schema.formation_basis, 500),
+    formation_metrics: schema.formation_metrics || packet.formation_metrics || {},
     support,
     confidence,
-    themes: unique(schema.matched_themes),
-    evidence_packet_ids: evidenceRecords
-      .map((record) => normalize(record.packet_id || `packet:${record.id}`))
-      .filter(Boolean),
-    sources: dedupeSources(evidenceRecords.flatMap((record) => record.sources || [])),
+    themes: unique(packet.matched_themes || schema.matched_themes),
+    evidence_packet_ids: evidencePacketIds,
+    sources,
     provenance: {
       system: "schema",
       claim_type: "virtual_cognitive_schema_packet",
+      schema_packet_id: normalize(packet.id || `schema_packet:${id}`),
       schema_id: id,
       guardrail: normalize(schema.language_guardrail),
     },
@@ -262,6 +285,21 @@ function buildMemoryGraph(memories) {
     }
 
     if (isSchemaMemory(memory)) {
+      const schemaPacketId = memory.schema_packet_id || `schema_packet:${slug(memory.schema_id)}`;
+      addNode({
+        id: schemaPacketId,
+        type: "virtual_cognitive_schema_packet",
+        label: memory.label,
+        strength: memory.strength,
+      });
+      edges.push({ from: memory.id, to: schemaPacketId, type: "stores_schema_packet", weight: memory.strength });
+
+      for (const marker of memory.matched_markers || []) {
+        const markerId = `memory:schema_marker:${slug(marker)}`;
+        addNode({ id: markerId, type: "schema_marker_memory", label: marker });
+        edges.push({ from: memory.id, to: markerId, type: "has_cognitive_marker", weight: memory.strength });
+      }
+
       for (const packetId of memory.evidence_packet_ids || []) {
         const activityId = `memory:activity:${slug(packetId)}`;
         edges.push({ from: memory.id, to: activityId, type: "supported_by_packet", weight: memory.strength });
@@ -517,6 +555,7 @@ function applyMemoryAction(memoryStore, action, mutate) {
 function formatReasons(memory) {
   const reasons = unique([
     ...(memory.reasons || []),
+    isSchemaMemory(memory) && memory.core_interpretation ? `frame: ${memory.core_interpretation}` : "",
     isSchemaMemory(memory) ? `${memory.support || 0} supporting packets` : "",
     memory.sources?.length ? `${memory.sources.length} source${memory.sources.length === 1 ? "" : "s"}` : "",
   ]);
