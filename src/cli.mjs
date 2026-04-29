@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { readFile } from "node:fs/promises";
-import { buildMemoryStore, formatMemoryReport, retrieveMemories } from "./engine.mjs";
+import { buildMemoryStore, buildRagContext, formatMemoryReport, retrieveMemories } from "./engine.mjs";
 
 function argValue(name, fallback = "") {
   const index = process.argv.indexOf(name);
@@ -30,14 +30,21 @@ const memoryStore = buildMemoryStore({
 });
 
 if (query) {
+  const rag = buildRagContext(query, memoryStore);
   const result = retrieveMemories(query, memoryStore);
   if (format === "json") {
-    console.log(JSON.stringify({ query, memories: result }, null, 2));
+    console.log(JSON.stringify({ query, rag, memories: result }, null, 2));
   } else {
     console.log(`Memact Memory Retrieval\nQuery: ${query}\n`);
     if (!result.length) {
       console.log("No retained memories matched.");
     } else {
+      console.log("RAG Context");
+      rag.context_items.forEach((item) => {
+        console.log(`- [${item.type}] ${item.label} score=${item.retrieval_score.toFixed(3)}`);
+      });
+      console.log("");
+      console.log("Retrieved Memories");
       result.forEach((memory, index) => {
         console.log(`${index + 1}. ${memory.label}`);
         console.log(`   type=${memory.type} score=${memory.retrieval_score.toFixed(3)} strength=${memory.strength.toFixed(3)}`);

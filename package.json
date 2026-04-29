@@ -8,6 +8,7 @@
   "main": "./src/engine.mjs",
   "exports": {
     ".": "./src/engine.mjs",
+    "./storage": "./src/storage.mjs",
     "./cli": "./src/cli.mjs"
   },
   "keywords": [
@@ -15,7 +16,9 @@
     "memory",
     "schema-packets",
     "meaning-packets",
-    "provenance"
+    "provenance",
+    "rag",
+    "crud"
   ],
   "repository": {
     "type": "git",
