@@ -4,6 +4,40 @@ const DEFAULT_DECAY_PER_DAY = 0.006;
 const MAX_SOURCES = 8;
 const DEFAULT_RAG_TOP = 6;
 
+export const MEMORY_RELATION_TYPES = Object.freeze({
+  ASSIMILATES: "assimilates",
+  ACCOMMODATES: "accommodates",
+  REINFORCES: "reinforces",
+  WEAKENS: "weakens",
+  CONTRADICTS: "contradicts",
+  TRIGGERS: "triggers",
+  BUILDS_ON: "builds_on",
+  SUPPORTS: "supports",
+  UPDATES: "updates",
+  SUPERSEDES: "supersedes",
+  SUPERSEDED_BY: "superseded_by",
+  CO_OCCURS_WITH: "co_occurs_with",
+  EVIDENCED_BY: "evidenced_by",
+  RELATED: "related",
+});
+
+const RELATION_METADATA = Object.freeze({
+  [MEMORY_RELATION_TYPES.ASSIMILATES]: { category: "schema_lifecycle", directed: true, defaultWeight: 0.74 },
+  [MEMORY_RELATION_TYPES.ACCOMMODATES]: { category: "schema_lifecycle", directed: true, defaultWeight: 0.72 },
+  [MEMORY_RELATION_TYPES.REINFORCES]: { category: "schema_lifecycle", directed: true, defaultWeight: 0.7 },
+  [MEMORY_RELATION_TYPES.WEAKENS]: { category: "schema_lifecycle", directed: true, defaultWeight: 0.45 },
+  [MEMORY_RELATION_TYPES.CONTRADICTS]: { category: "schema_lifecycle", directed: false, defaultWeight: 0.68 },
+  [MEMORY_RELATION_TYPES.TRIGGERS]: { category: "influence", directed: true, defaultWeight: 0.62 },
+  [MEMORY_RELATION_TYPES.BUILDS_ON]: { category: "learning", directed: true, defaultWeight: 0.64 },
+  [MEMORY_RELATION_TYPES.SUPPORTS]: { category: "evidence", directed: true, defaultWeight: 0.72 },
+  [MEMORY_RELATION_TYPES.UPDATES]: { category: "schema_lifecycle", directed: true, defaultWeight: 0.66 },
+  [MEMORY_RELATION_TYPES.SUPERSEDES]: { category: "schema_lifecycle", directed: true, defaultWeight: 0.82 },
+  [MEMORY_RELATION_TYPES.SUPERSEDED_BY]: { category: "schema_lifecycle", directed: true, defaultWeight: 0.82 },
+  [MEMORY_RELATION_TYPES.CO_OCCURS_WITH]: { category: "association", directed: false, defaultWeight: 0.52 },
+  [MEMORY_RELATION_TYPES.EVIDENCED_BY]: { category: "evidence", directed: true, defaultWeight: 0.78 },
+  [MEMORY_RELATION_TYPES.RELATED]: { category: "association", directed: false, defaultWeight: 0.5 },
+});
+
 function normalize(value, maxLength = 0) {
   const text = String(value || "").replace(/\s+/g, " ").trim();
   if (!text) return "";
@@ -31,6 +65,42 @@ function clamp(value, min = 0, max = 1) {
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function relationId(fromId, toId, type) {
+  return `relation:${slug(fromId)}:${slug(type)}:${slug(toId)}`;
+}
+
+function normalizeRelationType(type) {
+  const normalized = normalize(type, 80).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  return Object.values(MEMORY_RELATION_TYPES).includes(normalized) ? normalized : MEMORY_RELATION_TYPES.RELATED;
+}
+
+function normalizeRelationInput(input = {}) {
+  const from = normalize(input.from || input.from_id || input.source_id);
+  const to = normalize(input.to || input.to_id || input.target_id);
+  const type = normalizeRelationType(input.type || input.relation || MEMORY_RELATION_TYPES.RELATED);
+  const metadata = RELATION_METADATA[type] || RELATION_METADATA[MEMORY_RELATION_TYPES.RELATED];
+  const validFrom = normalize(input.valid_from || input.occurred_at || input.recorded_at || nowIso(), 80);
+  return {
+    id: normalize(input.id) || relationId(from, to, type),
+    from,
+    to,
+    type,
+    category: normalize(input.category || metadata.category),
+    directed: input.directed ?? metadata.directed,
+    weight: clamp(input.weight ?? metadata.defaultWeight),
+    confidence: clamp(input.confidence ?? input.weight ?? metadata.defaultWeight),
+    evidence: {
+      reason: normalize(input.evidence?.reason || input.reason, 260),
+      sources: dedupeSources(input.evidence?.sources || input.sources || [], 4),
+      packet_ids: unique(input.evidence?.packet_ids || input.packet_ids),
+    },
+    valid_from: validFrom,
+    valid_until: normalize(input.valid_until, 80),
+    recorded_at: normalize(input.recorded_at || nowIso(), 80),
+    invalidated_by: normalize(input.invalidated_by),
+  };
 }
 
 function parseTime(value) {
@@ -246,7 +316,7 @@ function mergeDuplicateMemories(memories) {
   return [...byKey.values()];
 }
 
-function buildMemoryGraph(memories) {
+function buildMemoryGraph(memories, relations = []) {
   const nodes = [];
   const edges = [];
   const seen = new Set();
@@ -308,6 +378,26 @@ function buildMemoryGraph(memories) {
     }
   }
 
+  for (const rawRelation of Array.isArray(relations) ? relations : []) {
+    const relation = normalizeRelationInput(rawRelation);
+    if (!relation.from || !relation.to) continue;
+    edges.push({
+      id: relation.id,
+      from: relation.from,
+      to: relation.to,
+      type: relation.type,
+      category: relation.category,
+      weight: relation.weight,
+      confidence: relation.confidence,
+      directed: relation.directed,
+      valid_from: relation.valid_from,
+      valid_until: relation.valid_until,
+      recorded_at: relation.recorded_at,
+      invalidated_by: relation.invalidated_by,
+      evidence: relation.evidence,
+    });
+  }
+
   return { nodes, edges };
 }
 
@@ -325,25 +415,29 @@ function makeAction(type, memoryId, payload = {}, accepted = true, reason = "") 
 
 function emptyMemoryStore(previous = {}) {
   const memories = Array.isArray(previous.memories) ? previous.memories : [];
+  const relations = Array.isArray(previous.relations) ? previous.relations : [];
   return refreshMemoryStore({
     schema_version: previous.schema_version || MEMORY_SCHEMA_VERSION,
     generated_at: previous.generated_at || nowIso(),
     source: previous.source || {},
     thresholds: previous.thresholds || {},
     memories,
+    relations,
     actions: Array.isArray(previous.actions) ? previous.actions : [],
   });
 }
 
 function refreshMemoryStore(memoryStore = {}) {
   const memories = Array.isArray(memoryStore.memories) ? memoryStore.memories : [];
-  const graph = buildMemoryGraph(memories);
+  const relations = (Array.isArray(memoryStore.relations) ? memoryStore.relations : []).map(normalizeRelationInput);
+  const graph = buildMemoryGraph(memories, relations);
   return {
     schema_version: memoryStore.schema_version || MEMORY_SCHEMA_VERSION,
     generated_at: nowIso(),
     source: memoryStore.source || {},
     thresholds: memoryStore.thresholds || {},
     memories,
+    relations,
     activity_memories: memories.filter((memory) => memory.type === "activity_memory"),
     schema_packets: memories.filter(isSchemaMemory),
     cognitive_schema_memories: memories.filter(isSchemaMemory),
@@ -396,10 +490,12 @@ export function buildMemoryStore({ inference, schema, previousMemory = null, opt
     .map(schemaMemoryFromSchema)
     .filter(Boolean);
   const previousMemories = Array.isArray(previousMemory?.memories) ? previousMemory.memories : [];
+  const previousRelations = Array.isArray(previousMemory?.relations) ? previousMemory.relations : [];
   const merged = mergeDuplicateMemories([...previousMemories, ...activityMemories, ...schemaPackets])
     .map((memory) => decayMemory(memory, options))
     .sort((left, right) => right.strength - left.strength || left.label.localeCompare(right.label));
-  const graph = buildMemoryGraph(merged);
+  const relations = previousRelations.map(normalizeRelationInput);
+  const graph = buildMemoryGraph(merged, relations);
 
   return {
     schema_version: MEMORY_SCHEMA_VERSION,
@@ -414,6 +510,7 @@ export function buildMemoryStore({ inference, schema, previousMemory = null, opt
       decay_per_day: Number(options.decayPerDay ?? DEFAULT_DECAY_PER_DAY),
     },
     memories: merged,
+    relations,
     activity_memories: merged.filter((memory) => memory.type === "activity_memory"),
     schema_packets: merged.filter(isSchemaMemory),
     cognitive_schema_memories: merged.filter(isSchemaMemory),
@@ -494,12 +591,14 @@ export function deleteMemory(memoryId, memoryStore = {}, options = {}) {
     const id = normalize(memoryId);
     const before = (memoryStore.memories || []).length;
     const memories = (memoryStore.memories || []).filter((memory) => memory.id !== id);
+    const relations = (memoryStore.relations || []).filter((relation) => relation.from !== id && relation.to !== id);
     const accepted = memories.length !== before;
     const action = makeAction("delete_memory", id, { hard: true }, accepted, accepted ? "memory deleted" : "memory not found");
     return {
       memoryStore: refreshMemoryStore({
         ...memoryStore,
         memories,
+        relations,
         actions: [...(memoryStore.actions || []), action],
       }),
       action,
@@ -570,6 +669,13 @@ export function buildRagContext(query, memoryStore = {}, options = {}) {
     evidence_packet_ids: memory.evidence_packet_ids || [],
     source_count: (memory.sources || []).length,
   }));
+  const contextIds = new Set(contextItems.map((item) => item.id));
+  const relationTrails = (memoryStore.relations || [])
+    .map(normalizeRelationInput)
+    .filter((relation) => contextIds.has(relation.from) || contextIds.has(relation.to))
+    .sort((left, right) => right.weight - left.weight || right.confidence - left.confidence)
+    .slice(0, 12);
+  const memoryLanes = buildMemoryLanes(contextItems, relationTrails);
 
   return {
     contract: "memact.rag_context",
@@ -584,6 +690,14 @@ export function buildRagContext(query, memoryStore = {}, options = {}) {
       no_causal_certainty: true,
       cloud_payload_minimized: true,
     },
+    retrieval_steps: [
+      "retrieve matching cognitive schema memories",
+      "attach supporting activity memories",
+      "attach memory relation trails",
+      "attach source evidence",
+    ],
+    memory_lanes: memoryLanes,
+    relation_trails: relationTrails,
     cognitive_schema_memories: cognitiveSchemas,
     supporting_memories: supportingMemories.slice(0, Math.max(0, top - cognitiveSchemas.length)),
     context_items: contextItems,
@@ -591,9 +705,38 @@ export function buildRagContext(query, memoryStore = {}, options = {}) {
     stats: {
       cognitive_schema_count: cognitiveSchemas.length,
       supporting_memory_count: supportingMemories.length,
+      relation_trail_count: relationTrails.length,
       source_count: sourceMap.size,
     },
   };
+}
+
+function buildMemoryLanes(contextItems = [], relationTrails = []) {
+  const lanes = {
+    cognitive_schema: [],
+    activity: [],
+    evidence_source: [],
+    relation: [],
+  };
+  for (const item of contextItems) {
+    const lane = item.type === "cognitive_schema_memory" || item.type === "schema_memory" ? "cognitive_schema" : "activity";
+    lanes[lane].push({
+      id: item.id,
+      label: item.label,
+      strength: item.strength,
+      retrieval_score: item.retrieval_score,
+    });
+  }
+  for (const relation of relationTrails) {
+    lanes.relation.push({
+      id: relation.id,
+      type: relation.type,
+      from: relation.from,
+      to: relation.to,
+      weight: relation.weight,
+    });
+  }
+  return lanes;
 }
 
 export function rememberPacket(packet, memoryStore = {}, options = {}) {
@@ -635,12 +778,19 @@ export function rememberSchema(schemaPacket, memoryStore = {}) {
 
 export function reinforceMemory(memoryId, evidence = {}, memoryStore = {}) {
   const action = makeAction("reinforce_memory", memoryId, evidence, true, "memory reinforced by evidence");
-  return applyMemoryAction(memoryStore, action, (memory) => ({
+  const result = applyMemoryAction(memoryStore, action, (memory) => ({
     ...memory,
     strength: clamp(Number(memory.strength || 0) + 0.08),
     survival_score: clamp(Number(memory.survival_score || 0) + 0.08),
     sources: dedupeSources([...(memory.sources || []), ...(evidence.sources || [])]),
   }));
+  if (!result.action.accepted) return result;
+  return addRelation(result.memoryStore, {
+    from: memoryId,
+    to: evidence.memory_id || evidence.source_memory_id || memoryId,
+    type: MEMORY_RELATION_TYPES.REINFORCES,
+    evidence,
+  }, action);
 }
 
 export function weakenMemory(memoryId, reason = "", memoryStore = {}) {
@@ -662,24 +812,190 @@ export function forgetMemory(memoryId, memoryStore = {}) {
 }
 
 export function linkMemories(fromId, toId, memoryStore = {}, relation = "related") {
-  const action = makeAction("link_memories", fromId, { to: toId, relation }, true, "memories linked");
-  const graph = memoryStore?.graph || { nodes: [], edges: [] };
-  return {
-    ...memoryStore,
-    graph: {
-      nodes: graph.nodes || [],
-      edges: [
-        ...(graph.edges || []),
-        {
-          from: fromId,
-          to: toId,
-          type: normalize(relation, 60) || "related",
-          weight: 1,
-        },
-      ],
+  return relateMemories(fromId, toId, relation, {}, memoryStore).memoryStore;
+}
+
+export function relateMemories(fromId, toId, relation = MEMORY_RELATION_TYPES.RELATED, evidence = {}, memoryStore = {}) {
+  const from = normalize(fromId);
+  const to = normalize(toId);
+  const type = normalizeRelationType(relation);
+  const memories = memoryStore.memories || [];
+  const exists = memories.some((memory) => memory.id === from) && memories.some((memory) => memory.id === to);
+  const action = makeAction("relate_memories", from, { to, relation: type }, exists, exists ? "memories related" : "both memories must exist before linking");
+  if (!exists) return { memoryStore: emptyMemoryStore(memoryStore), relation: null, action };
+  return addRelation(memoryStore, { from, to, type, evidence }, action);
+}
+
+export function assimilateEvidence(memoryId, evidence = {}, memoryStore = {}) {
+  const packetIds = unique(evidence.packet_ids || evidence.evidence_packet_ids || (evidence.packet_id ? [evidence.packet_id] : []));
+  const action = makeAction("assimilate_evidence", memoryId, {
+    packet_ids: packetIds,
+    source_count: Array.isArray(evidence.sources) ? evidence.sources.length : 0,
+  }, true, "evidence assimilated into memory");
+  const result = applyMemoryAction(memoryStore, action, (memory) => ({
+    ...memory,
+    strength: clamp(Number(memory.strength || 0) + 0.06 + Math.min(0.08, packetIds.length * 0.015)),
+    survival_score: clamp(Number(memory.survival_score || 0) + 0.05),
+    support: Number(memory.support || 0) + Math.max(1, packetIds.length),
+    evidence_packet_ids: unique([...(memory.evidence_packet_ids || []), ...packetIds]),
+    sources: dedupeSources([...(memory.sources || []), ...(evidence.sources || [])]),
+    themes: unique([...(memory.themes || []), ...(evidence.themes || [])]),
+    reasons: unique([...(memory.reasons || []), normalize(evidence.reason || "new evidence matched this schema")]),
+    last_seen_at: normalize(evidence.occurred_at || nowIso(), 80),
+    schema_state: memory.schema_state || "assimilating",
+  }));
+  if (!result.action.accepted) return result;
+  return addRelation(result.memoryStore, {
+    from: memoryId,
+    to: evidence.source_memory_id || memoryId,
+    type: MEMORY_RELATION_TYPES.ASSIMILATES,
+    evidence: { ...evidence, packet_ids: packetIds },
+  }, action);
+}
+
+export function accommodateSchema(memoryInput, evidence = {}, memoryStore = {}) {
+  const schemaMemory = normalizeMemoryInput({
+    ...memoryInput,
+    type: "cognitive_schema_memory",
+    virtual: true,
+    cognitive_schema: true,
+    state: memoryInput.state || "active",
+    schema_state: memoryInput.schema_state || "accommodated",
+    provenance: {
+      system: "memory",
+      claim_type: "accommodated_cognitive_schema",
+      ...(memoryInput.provenance || {}),
     },
+    evidence_packet_ids: unique(memoryInput.evidence_packet_ids || evidence.packet_ids || evidence.evidence_packet_ids),
+    sources: dedupeSources([...(memoryInput.sources || []), ...(evidence.sources || [])]),
+    reasons: unique([...(memoryInput.reasons || []), evidence.reason || "new evidence needed a separate schema"]),
+  });
+  const created = createMemory(schemaMemory, memoryStore);
+  if (!created.action.accepted) return created;
+  const action = makeAction("accommodate_schema", schemaMemory.id, { reason: normalize(evidence.reason, 240) }, true, "new schema accommodated");
+  const next = refreshMemoryStore({
+    ...created.memoryStore,
+    actions: [...(created.memoryStore.actions || []), action],
+  });
+  return addRelation(next, {
+    from: schemaMemory.id,
+    to: evidence.source_memory_id || schemaMemory.id,
+    type: MEMORY_RELATION_TYPES.ACCOMMODATES,
+    evidence,
+  }, action);
+}
+
+export function supersedeMemory(memoryId, replacementInput = {}, reason = "", memoryStore = {}) {
+  const previous = readMemory(memoryId, memoryStore);
+  if (!previous) {
+    const action = makeAction("supersede_memory", memoryId, {}, false, "memory not found");
+    return { memoryStore: emptyMemoryStore(memoryStore), memory: null, replaced: null, action };
+  }
+  const replacement = normalizeMemoryInput({
+    ...previous,
+    ...replacementInput,
+    id: replacementInput.id || `${previous.id}:v${Date.now()}`,
+    supersedes: unique([...(replacementInput.supersedes || []), previous.id]),
+    reasons: unique([...(previous.reasons || []), ...(replacementInput.reasons || []), reason || "memory updated by newer evidence"]),
+    strength: clamp(Math.max(previous.strength || 0, replacementInput.strength ?? previous.strength ?? 0) + 0.04),
+    first_seen_at: replacementInput.first_seen_at || previous.first_seen_at,
+    last_seen_at: replacementInput.last_seen_at || nowIso(),
+    state: replacementInput.state || "active",
+  });
+  const memories = (memoryStore.memories || []).map((memory) => (
+    memory.id === previous.id
+      ? {
+        ...memory,
+        state: "superseded",
+        superseded_by: replacement.id,
+        valid_until: nowIso(),
+        strength: clamp(Number(memory.strength || 0) - 0.18),
+      }
+      : memory
+  ));
+  const action = makeAction("supersede_memory", previous.id, { replacement_id: replacement.id, reason: normalize(reason) }, true, "memory superseded");
+  const next = refreshMemoryStore({
+    ...memoryStore,
+    memories: [...memories, replacement],
     actions: [...(memoryStore.actions || []), action],
+  });
+  const withForward = addRelation(next, {
+    from: replacement.id,
+    to: previous.id,
+    type: MEMORY_RELATION_TYPES.SUPERSEDES,
+    evidence: { reason },
+  }, action);
+  const withReverse = addRelation(withForward.memoryStore, {
+    from: previous.id,
+    to: replacement.id,
+    type: MEMORY_RELATION_TYPES.SUPERSEDED_BY,
+    evidence: { reason },
+  }, action);
+  return {
+    memoryStore: withReverse.memoryStore,
+    memory: replacement,
+    replaced: previous,
+    action,
   };
+}
+
+export function getMemoryTimeline(memoryStore = {}, options = {}) {
+  const limit = Number(options.limit ?? 50);
+  const memoryEvents = (memoryStore.memories || []).flatMap((memory) => [
+    memory.first_seen_at ? { type: "first_seen", memory_id: memory.id, label: memory.label, occurred_at: memory.first_seen_at } : null,
+    memory.last_seen_at ? { type: "last_seen", memory_id: memory.id, label: memory.label, occurred_at: memory.last_seen_at } : null,
+  ]).filter(Boolean);
+  const actionEvents = (memoryStore.actions || []).map((action) => ({
+    type: action.type,
+    memory_id: action.memory_id,
+    label: action.reason,
+    occurred_at: action.occurred_at,
+    accepted: action.accepted,
+  }));
+  const relationEvents = (memoryStore.relations || []).map((relation) => ({
+    type: `relation:${relation.type}`,
+    memory_id: relation.from,
+    target_id: relation.to,
+    label: relation.evidence?.reason || relation.type,
+    occurred_at: relation.recorded_at || relation.valid_from,
+  }));
+  return [...memoryEvents, ...actionEvents, ...relationEvents]
+    .sort((left, right) => parseTime(right.occurred_at) - parseTime(left.occurred_at))
+    .slice(0, limit);
+}
+
+export function queryMemoryGraph(query, memoryStore = {}, options = {}) {
+  const top = Number(options.top ?? 6);
+  const retrieved = retrieveMemories(query, memoryStore, { top, minScore: options.minScore ?? 0.08 });
+  const ids = new Set(retrieved.map((memory) => memory.id));
+  const relationTrails = (memoryStore.relations || [])
+    .map(normalizeRelationInput)
+    .filter((relation) => ids.has(relation.from) || ids.has(relation.to))
+    .sort((left, right) => right.weight - left.weight)
+    .slice(0, Number(options.relationTop ?? 12));
+  return {
+    query: normalize(query, 240),
+    memories: retrieved,
+    relation_trails: relationTrails,
+    timeline: getMemoryTimeline(memoryStore, { limit: Number(options.timelineLimit ?? 12) }),
+  };
+}
+
+function addRelation(memoryStore = {}, relationInput = {}, action = null) {
+  const relation = normalizeRelationInput(relationInput);
+  if (!relation.from || !relation.to) {
+    const rejected = action ? { ...action, accepted: false, reason: "relation missing endpoints" } : makeAction("relate_memories", relation.from, relation, false, "relation missing endpoints");
+    return { memoryStore: emptyMemoryStore(memoryStore), relation: null, action: rejected };
+  }
+  const relations = [...(memoryStore.relations || []).filter((item) => item.id !== relation.id), relation];
+  const next = refreshMemoryStore({
+    ...memoryStore,
+    relations,
+    actions: action && !(memoryStore.actions || []).some((item) => item.id === action.id)
+      ? [...(memoryStore.actions || []), action]
+      : (memoryStore.actions || []),
+  });
+  return { memoryStore: next, relation, action: action || makeAction("relate_memories", relation.from, relation, true, "memories related") };
 }
 
 export function explainMemory(memoryId, memoryStore = {}) {
@@ -743,7 +1059,8 @@ function applyMemoryAction(memoryStore, action, mutate) {
     activity_memories: memories.filter((memory) => memory.type === "activity_memory"),
     schema_packets: memories.filter(isSchemaMemory),
     cognitive_schema_memories: memories.filter(isSchemaMemory),
-    graph: buildMemoryGraph(memories),
+    graph: buildMemoryGraph(memories, memoryStore.relations || []),
+    relations: memoryStore.relations || [],
     actions: [...(memoryStore.actions || []), finalAction],
     stats: {
       ...(memoryStore.stats || {}),
