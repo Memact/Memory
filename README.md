@@ -2,42 +2,44 @@
 
 Version: `v0.0`
 
-Memory is the durable survival layer in the Memact architecture.
+Memory is the durable store for Memact's retained evidence and virtual schema packets.
 
-It answers:
-
-`What should survive across future interactions, models, and apps?`
-
-Memory stores meaningful activity packets and virtual cognitive-schema packets. It does not store random browsing as memory. It keeps provenance, strength, decay, formation metrics, graph links, and CRUD/RAG surfaces so future models and apps can act from evidence instead of guessing.
-
-## Pipeline Position
+It owns one job:
 
 ```text
-Capture -> Inference -> Schema -> Memory -> Website / Query -> Origin / Influence -> Action -> Memory
+decide what survives and retrieve it later
 ```
 
-Memory sits after Schema because raw activity should not automatically survive as long-term memory. Inference decides what is meaningful. Schema induces virtual cognitive schemas. Memory decides what persists, merges, strengthens, fades, gets retrieved, or gets forgotten.
+Memory does not capture browser data, infer meaning from raw pages, or generate final answers. It stores, updates, retrieves, links, weakens, and forgets memory records.
 
-In product terms, Memory is where Memact keeps the virtual cognitive schemas. These are not medical claims. They are evidence-backed mirrors of repeated frames that may be shaping how a user reads ideas, feelings, and decisions.
+## What This Repo Owns
 
-The cognitive-science principle is simple: new evidence can be assimilated into an existing schema, or it can force accommodation by creating/changing a schema. Memory keeps that update path explicit and auditable.
+- Stores meaningful activity memories.
+- Stores virtual cognitive-schema memories.
+- Stores source/theme links used for retrieval.
+- Exposes CRUD APIs.
+- Builds compact RAG context for Website/API answers.
+- Tracks memory actions such as reinforcement, weakening, assimilation, accommodation, supersession, and forgetting.
+- Keeps provenance so retrieved context can be traced back to evidence.
 
-## What It Stores
+## Memory Types
 
 - `activity_memory`
-  Meaningful activity packets from Inference.
+  A retained evidence packet from Inference.
+
 - `cognitive_schema_memory`
-  Virtual cognitive-schema packets from Schema. This is the primary retrieval surface for answering user questions. It preserves the core interpretation, action tendency, emotional signature, marker groups, evidence packets, and source provenance.
+  A virtual schema packet from Schema. This is the primary retrieval surface.
+
 - `source_memory`
-  Source nodes that support memories.
+  A source node that supports a memory.
+
 - `theme_memory`
-  Canonical themes that connect packets and schemas.
+  A theme node connecting memories.
+
 - `memory_graph`
-  Links between packets, schemas, sources, themes, and future thought queries.
+  Typed links between memories, sources, themes, schemas, and future queries.
 
-## RAG And CRUD
-
-Memory exposes direct CRUD and RAG APIs. Apps can use them locally today and through a cloud adapter later.
+## Main APIs
 
 ```text
 createMemory(memory)
@@ -45,117 +47,36 @@ readMemory(id)
 listMemories(filters)
 updateMemory(id, patch)
 deleteMemory(id, { hard })
-buildRagContext(query, memoryStore)
-queryMemoryGraph(query, memoryStore)
 rememberPacket(packet)
 rememberSchema(schema)
 retrieveCognitiveSchemas(query)
 retrieveMemories(query)
+buildRagContext(query, memoryStore)
 relateMemories(a, b, relation)
-linkMemories(a, b)
-assimilateEvidence(id, evidence)
-accommodateSchema(memory, evidence)
-supersedeMemory(id, replacement, reason)
 reinforceMemory(id, evidence)
 weakenMemory(id, reason)
 forgetMemory(id)
-explainMemory(id)
 getMemoryGraph()
-getMemoryTimeline()
 ```
 
-`buildRagContext()` is the retrieval packet for answer generation. It prefers cognitive-schema memory, then attaches supporting activity/source memories, memory lanes, and relation trails. Gemini or another model can receive this minimized context, but not the full captured activity store.
+## RAG Context
 
-## Cognitive Schema Lifecycle
-
-Memory now treats schemas as living packets:
-
-- `assimilateEvidence()`
-  Adds new evidence into an existing schema when it fits.
-- `accommodateSchema()`
-  Creates a new schema when evidence does not fit an existing frame.
-- `supersedeMemory()`
-  Preserves an older schema while marking a newer one as the replacement.
-- `relateMemories()`
-  Links memories with typed relation trails such as `builds_on`, `contradicts`, `triggers`, `supports`, `assimilates`, and `supersedes`.
-- `queryMemoryGraph()`
-  Retrieves memories plus the relation trails around them.
-
-This is the core Memact idea: not a static list of sources, but a virtual cognitive-schema memory that changes as new activity keeps shaping the user's frames.
-
-## Controlled Memory Actions
-
-Models and apps can propose memory actions, but Memory validates them deterministically.
-
-The model can act on memory, but it should not freely rewrite memory. Every action keeps an audit event and must preserve provenance.
-
-## Storage Boundary
-
-Memory is storage-agnostic. The engine works on a plain memory store object. `src/storage.mjs` adds adapters:
-
-- `createJsonFileMemoryAdapter(path)`
-- `createRemoteMemoryAdapter({ load, save, provider })`
-- `createMemoryRepository(adapter)`
-
-This keeps the future open for Google Drive, Supabase, S3, user-owned cloud storage, or encrypted local-first sync. The storage layer can save/retrieve memory stores, but it must not bypass CRUD, provenance, or RAG policy.
-
-## Reference Research Used
-
-The Memory layer was strengthened after reviewing external memory systems. Ideas were translated into Memact-native code; no source code was copied.
-
-- AgenticMemory inspired append-only action history, decision lineage, supersession, and multi-index retrieval thinking.
-- MemoryGraph inspired typed relationships, time-valid links, and graph traversal around memories.
-- Hindsight inspired separating activity memories from higher-level mental-model/schema memories.
-- ReMe inspired compaction/refinement as a memory lifecycle instead of one-shot storage.
-- Mozilla Readability reinforced Capture's rule: extract meaningful page content, not browser chrome or noise.
-
-## Public Output Contract
+`buildRagContext()` returns a small evidence packet:
 
 ```json
 {
-  "schema_version": "memact.memory.v0",
-  "memories": [
-    {
-      "id": "memory:activity:packet-act-1",
-      "type": "activity_memory",
-      "label": "YC founder interview about shipping MVPs",
-      "strength": 0.63,
-      "survival_score": 0.63,
-      "source_packet_id": "packet:act_1",
-      "themes": ["startup"],
-      "sources": []
-    }
-  ],
-  "schema_packets": [
-    {
-      "id": "memory:schema:builder_agency",
-      "type": "cognitive_schema_memory",
-      "label": "Builder / agency schema",
-      "virtual": true,
-      "cognitive_schema": true,
-      "core_interpretation": "Progress feels real when it becomes built, shipped, or visible.",
-      "action_tendency": "move toward building, debugging, launching, proving, or showing work",
-      "strength": 0.72,
-      "support": 4
-    }
-  ],
-  "graph": {
-    "nodes": [],
-    "edges": []
-  },
-  "relations": [
-    {
-      "from": "memory:schema:builder_agency",
-      "to": "memory:activity:packet-act-1",
-      "type": "assimilates",
-      "weight": 0.74
-    }
-  ],
-  "actions": []
+  "schema_version": "memact.rag_context.v0",
+  "query": "why do I keep thinking about building in public?",
+  "cognitive_schemas": [],
+  "supporting_memories": [],
+  "relation_trails": [],
+  "sources": []
 }
 ```
 
-## Terminal Quickstart
+The context is intentionally small. If an external model is used later, it should receive this context instead of the full captured activity store.
+
+## Run Locally
 
 Prerequisites:
 
@@ -168,7 +89,7 @@ Install:
 npm install
 ```
 
-Run validation:
+Validate:
 
 ```powershell
 npm run check
@@ -180,50 +101,21 @@ Run sample:
 npm run sample
 ```
 
-View schema packets as a terminal graph:
-
-```powershell
-npm run sample:graph
-```
-
-View the same schema packet graph as Mermaid:
+Mermaid graph sample:
 
 ```powershell
 npm run sample:mermaid
 ```
 
-Build memory JSON:
+Run with explicit inputs:
 
 ```powershell
-npm run memory -- --inference ..\inference-output.json --schema ..\schema-output.json --format json
+npm run memory -- --inference path\to\inference.json --schema path\to\schema.json --format report
 ```
 
-Build a schema packet graph from your own Inference and Schema outputs:
+## Storage Boundary
 
-```powershell
-npm run memory -- --inference ..\inference-output.json --schema ..\schema-output.json --format graph
-```
-
-Build a RAG context for a thought:
-
-```powershell
-npm run memory -- --inference examples\sample-inference-output.json --schema examples\sample-schema-output.json --query "why do I need to build something real" --format json
-```
-
-## Design Rules
-
-- memory is not raw storage
-- memory stores what survives after deterministic gates
-- cognitive-schema memories are virtual schema mirrors, not diagnoses
-- RAG starts from cognitive-schema memory and returns a minimized evidence packet
-- relation trails are part of retrieval, not AI-generated decoration
-- CRUD actions are explicit and auditable
-- storage adapters must not bypass memory policy
-- retrieval should prefer cognitive-schema memory first, then use activity/source packets as evidence
-- every memory must keep provenance
-- actions are explicit and auditable
-- models can propose, Memory validates
-- forgetting and weakening are first-class operations
+The current implementation is local. Storage adapters are shaped so cloud storage can be added later without changing Memory's public contract.
 
 ## License
 
