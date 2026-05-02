@@ -15,6 +15,7 @@
     "./influence-paths": "./src/influence-paths.mjs",
     "./negative-evidence": "./src/negative-evidence.mjs",
     "./scoring": "./src/scoring.mjs",
+    "./source-metadata": "./src/source-metadata.mjs",
     "./storage": "./src/storage.mjs",
     "./cli": "./src/cli.mjs"
   },

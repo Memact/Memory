@@ -1,4 +1,5 @@
 import { categorizeInfluenceLink } from "./influence-categories.mjs";
+import { enrichSourceMetadata } from "./source-metadata.mjs";
 
 function normalize(value, maxLength = 0) {
   const text = String(value ?? "").replace(/\s+/g, " ").trim();
@@ -101,8 +102,9 @@ export function buildInfluencePathFromMemory({
   schema = {},
   thoughtScore = 0.5,
 } = {}) {
+  const enrichedSource = enrichSourceMetadata(source);
   const evidenceIds = unique([
-    source.evidence_id,
+    enrichedSource.evidence_id,
     contentUnit.evidence_id,
     ...(schema.evidence_packet_ids || []),
     ...(schema.evidence_ids || []),
@@ -115,13 +117,14 @@ export function buildInfluencePathFromMemory({
     steps: [
       {
         type: "digital_exposure",
-        label: source.title || source.domain || source.url || "captured source",
-        weight: source.score ?? 0.5,
-        evidence_ids: source.evidence_id ? [source.evidence_id] : [],
+        label: enrichedSource.title || enrichedSource.domain || enrichedSource.url || "captured source",
+        weight: enrichedSource.score ?? enrichedSource.source_strength_score ?? 0.5,
+        evidence_ids: enrichedSource.evidence_id ? [enrichedSource.evidence_id] : [],
         metadata: {
-          url: source.url || "",
-          source_type: source.source_type || "",
-          timestamp: source.timestamp || source.occurred_at || "",
+          url: enrichedSource.url || "",
+          source_type: enrichedSource.source_type || "",
+          source_strength_score: enrichedSource.source_strength_score,
+          timestamp: enrichedSource.timestamp || enrichedSource.occurred_at || "",
         },
       },
       {

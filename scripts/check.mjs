@@ -61,6 +61,12 @@ import {
   decomposeInfluenceConfidence,
 } from "../src/scoring.mjs";
 import {
+  enrichSourceMetadata,
+  inferSourceType,
+  SOURCE_TYPES,
+  sourceReliabilityScore,
+} from "../src/source-metadata.mjs";
+import {
   applyNegativeEvidenceScore,
   detectNegativeEvidence,
   NEGATIVE_EVIDENCE_TYPES,
@@ -197,6 +203,9 @@ if (!validateInfluencePath(sampleInfluencePath).ok || sampleInfluencePath.steps.
 if (!sampleInfluencePath.category || !sampleInfluencePath.influence_category) {
   throw new Error("Expected influence paths to carry a stored influence category.");
 }
+if (sampleInfluencePath.steps[0].metadata.source_type !== SOURCE_TYPES.ARTICLE) {
+  throw new Error("Expected influence path source step to preserve source type metadata.");
+}
 
 const repeatedCategory = categorizeInfluenceLink({
   thought: "why do startup videos keep making me want to build",
@@ -212,6 +221,19 @@ const selfReported = applyInfluenceCategory({
 });
 if (selfReported.category !== INFLUENCE_CATEGORIES.SELF_REPORTED_ORIGIN || !explainInfluenceCategory(selfReported.category)) {
   throw new Error("Expected self-report influence links to be categorized and explainable.");
+}
+
+if (inferSourceType({ url: "https://genius.com/song-lyrics" }) !== SOURCE_TYPES.SONG_LYRICS) {
+  throw new Error("Expected lyrics domains to classify as song lyrics.");
+}
+if (inferSourceType({ url: "https://youtube.com/watch?v=1", source_type: "video" }) !== SOURCE_TYPES.VIDEO_TRANSCRIPT) {
+  throw new Error("Expected YouTube/video sources to classify as video transcripts.");
+}
+if (sourceReliabilityScore({ source_type: "survey/self-report", snippet: "I remember this from a friend." }) <= sourceReliabilityScore({ source_type: "ad" })) {
+  throw new Error("Expected self-report evidence to score differently from ads.");
+}
+if (enrichSourceMetadata({ url: "https://example.com/article", title: "A long article about founder execution" }).source_strength_score <= 0) {
+  throw new Error("Expected source metadata enrichment to include source strength.");
 }
 
 const pathClaim = claimFromInfluencePath(sampleInfluencePath);
