@@ -19,11 +19,84 @@ import {
   supersedeMemory,
   updateMemory,
 } from "../src/engine.mjs";
+import {
+  safeIngestCoreRecord,
+  validateActivityEvent,
+  validateContentUnit,
+  validateEvidenceLink,
+  validateGraphPacket,
+  validateInfluenceClaim,
+  validateMemoryEdge,
+  validateMemoryNode,
+  validateThoughtTrace,
+} from "../src/core-schemas.mjs";
 import { createMemoryRepository, createRemoteMemoryAdapter } from "../src/storage.mjs";
 
 const inference = JSON.parse(await readFile(new URL("../examples/sample-inference-output.json", import.meta.url), "utf8"));
 const schema = JSON.parse(await readFile(new URL("../examples/sample-schema-output.json", import.meta.url), "utf8"));
 const memory = buildMemoryStore({ inference, schema });
+
+const validActivity = validateActivityEvent({
+  id: "activity:test",
+  occurred_at: "2026-04-30T10:00:00.000Z",
+  title: "Startup article",
+  content_text: "Reading about founder execution.",
+  source_type: "article",
+});
+if (!validActivity.ok || validActivity.value.source_type !== "article") {
+  throw new Error("Expected valid ActivityEvent schema.");
+}
+
+const invalidActivity = safeIngestCoreRecord("ActivityEvent", {
+  id: "activity:bad",
+  occurred_at: "not-a-date",
+});
+if (invalidActivity.accepted || !invalidActivity.quarantine?.errors?.length) {
+  throw new Error("Expected invalid ActivityEvent to be quarantined.");
+}
+
+if (!validateContentUnit({ unit_id: "u1", text: "Repeated exposure shapes attention." }).ok) {
+  throw new Error("Expected valid ContentUnit schema.");
+}
+
+if (!validateGraphPacket({
+  packet_id: "packet:test",
+  captured_at: "2026-04-30T10:00:00.000Z",
+  content_units: [{ unit_id: "u1", text: "Repeated exposure shapes attention." }],
+}).ok) {
+  throw new Error("Expected valid GraphPacket schema.");
+}
+
+if (!validateMemoryNode({ id: "memory:test", type: "activity_memory", label: "Founder execution" }).ok) {
+  throw new Error("Expected valid MemoryNode schema.");
+}
+
+if (!validateMemoryEdge({ from: "memory:a", to: "memory:b", type: "supports", evidence_ids: ["e1"] }).ok) {
+  throw new Error("Expected valid MemoryEdge schema.");
+}
+
+if (!validateEvidenceLink({
+  evidence_id: "e1",
+  source_url: "https://example.com/founder",
+  snippet: "Founder execution matters.",
+  claim_supported: "claim:founder",
+  score: 0.8,
+}).ok) {
+  throw new Error("Expected valid EvidenceLink schema.");
+}
+
+if (!validateInfluenceClaim({
+  claim_id: "claim:test",
+  claim_type: "possible_influence",
+  text: "Startup reading may have contributed to the thought.",
+  supporting_evidence_ids: ["e1"],
+}).ok) {
+  throw new Error("Expected valid InfluenceClaim schema.");
+}
+
+if (!validateThoughtTrace({ trace_id: "thought:test", thought: "I need to build something real" }).ok) {
+  throw new Error("Expected valid ThoughtTrace schema.");
+}
 
 if (!memory.memories.length) {
   throw new Error("Expected retained memories.");

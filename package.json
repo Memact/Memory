@@ -8,6 +8,7 @@
   "main": "./src/engine.mjs",
   "exports": {
     ".": "./src/engine.mjs",
+    "./core-schemas": "./src/core-schemas.mjs",
     "./storage": "./src/storage.mjs",
     "./cli": "./src/cli.mjs"
   },
