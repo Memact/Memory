@@ -30,6 +30,13 @@ import {
   validateMemoryNode,
   validateThoughtTrace,
 } from "../src/core-schemas.mjs";
+import {
+  attachEvidenceToClaim,
+  collectEvidenceLinksFromMemory,
+  createEvidenceLink,
+  evidenceLinksForClaim,
+  indexEvidenceLinks,
+} from "../src/evidence-links.mjs";
 import { createMemoryRepository, createRemoteMemoryAdapter } from "../src/storage.mjs";
 
 const inference = JSON.parse(await readFile(new URL("../examples/sample-inference-output.json", import.meta.url), "utf8"));
@@ -98,8 +105,38 @@ if (!validateThoughtTrace({ trace_id: "thought:test", thought: "I need to build 
   throw new Error("Expected valid ThoughtTrace schema.");
 }
 
+const explicitEvidence = createEvidenceLink({
+  evidence_id: "evidence:explicit",
+  source_url: "https://example.com/startup",
+  timestamp: "2026-04-30T10:00:00.000Z",
+  snippet: "Do things that do not scale.",
+  claim_supported: "claim:startup",
+  score: 0.92,
+});
+if (!explicitEvidence.ok || explicitEvidence.evidence.score !== 0.92) {
+  throw new Error("Expected first-class evidence link creation.");
+}
+
+const evidenceIndex = indexEvidenceLinks([explicitEvidence.evidence]);
+if (!evidenceIndex.has("evidence:explicit")) {
+  throw new Error("Expected evidence link indexing.");
+}
+
+if (evidenceLinksForClaim("claim:startup", [explicitEvidence.evidence]).length !== 1) {
+  throw new Error("Expected evidence retrieval by claim.");
+}
+
+const claimWithEvidence = attachEvidenceToClaim({ claim_id: "claim:startup" }, [explicitEvidence.evidence]);
+if (!claimWithEvidence.supporting_evidence_ids.includes("evidence:explicit")) {
+  throw new Error("Expected evidence IDs to attach to claims.");
+}
+
 if (!memory.memories.length) {
   throw new Error("Expected retained memories.");
+}
+
+if (!collectEvidenceLinksFromMemory(memory, "claim:sample").length) {
+  throw new Error("Expected memory store to serialize evidence links.");
 }
 
 if (!memory.schema_packets.length) {
