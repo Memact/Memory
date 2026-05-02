@@ -12,6 +12,7 @@
     "./core-schemas": "./src/core-schemas.mjs",
     "./evidence-links": "./src/evidence-links.mjs",
     "./influence-paths": "./src/influence-paths.mjs",
+    "./scoring": "./src/scoring.mjs",
     "./storage": "./src/storage.mjs",
     "./cli": "./src/cli.mjs"
   },

@@ -50,6 +50,10 @@ import {
   buildInfluencePathsForThought,
   validateInfluencePath,
 } from "../src/influence-paths.mjs";
+import {
+  attachConfidenceBreakdown,
+  decomposeInfluenceConfidence,
+} from "../src/scoring.mjs";
 import { createMemoryRepository, createRemoteMemoryAdapter } from "../src/storage.mjs";
 
 const inference = JSON.parse(await readFile(new URL("../examples/sample-inference-output.json", import.meta.url), "utf8"));
@@ -208,6 +212,24 @@ if (!claimsForEvidence("evidence:pg", [pathClaim.claim]).length) {
 
 if (createClaim({ claim_type: "possible_influence", text: "unsupported claim" }).ok) {
   throw new Error("Expected non-unknown claims without evidence to be rejected.");
+}
+
+const confidence = decomposeInfluenceConfidence({
+  semantic_match_score: 0.8,
+  recency_score: 0.5,
+  repetition_score: 0.75,
+  source_strength_score: 0.7,
+  phrase_overlap_score: 0.25,
+  user_feedback_score: 1,
+  uncertainty_penalty: 0.1,
+});
+if (confidence.confidence <= 0 || confidence.confidence >= 1 || !confidence.formula.includes("semantic")) {
+  throw new Error("Expected decomposed confidence score.");
+}
+
+const scoredPath = attachConfidenceBreakdown(sampleInfluencePath, confidence);
+if (!scoredPath.confidence_breakdown || scoredPath.confidence !== confidence.confidence) {
+  throw new Error("Expected confidence breakdown to attach to influence objects.");
 }
 
 if (!buildInfluencePathsForThought("why build something real", memory).length) {
