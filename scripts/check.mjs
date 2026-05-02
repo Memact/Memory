@@ -54,6 +54,11 @@ import {
   attachConfidenceBreakdown,
   decomposeInfluenceConfidence,
 } from "../src/scoring.mjs";
+import {
+  applyNegativeEvidenceScore,
+  detectNegativeEvidence,
+  NEGATIVE_EVIDENCE_TYPES,
+} from "../src/negative-evidence.mjs";
 import { createMemoryRepository, createRemoteMemoryAdapter } from "../src/storage.mjs";
 
 const inference = JSON.parse(await readFile(new URL("../examples/sample-inference-output.json", import.meta.url), "utf8"));
@@ -230,6 +235,22 @@ if (confidence.confidence <= 0 || confidence.confidence >= 1 || !confidence.form
 const scoredPath = attachConfidenceBreakdown(sampleInfluencePath, confidence);
 if (!scoredPath.confidence_breakdown || scoredPath.confidence !== confidence.confidence) {
   throw new Error("Expected confidence breakdown to attach to influence objects.");
+}
+
+const negativeSignals = detectNegativeEvidence({
+  id: "candidate:late",
+  occurred_at: "2026-05-02T10:00:00.000Z",
+  token_overlap: 1,
+  meaningful_score: 0.3,
+  duration_seconds: 5,
+}, {
+  created_at: "2026-05-01T10:00:00.000Z",
+});
+if (!negativeSignals.some((signal) => signal.type === NEGATIVE_EVIDENCE_TYPES.THOUGHT_PREDATES_EXPOSURE)) {
+  throw new Error("Expected thought-predates-exposure negative evidence.");
+}
+if (applyNegativeEvidenceScore(0.7, negativeSignals) >= 0.7) {
+  throw new Error("Expected negative evidence to reduce confidence.");
 }
 
 if (!buildInfluencePathsForThought("why build something real", memory).length) {
