@@ -66,6 +66,7 @@ import {
   SOURCE_TYPES,
   sourceReliabilityScore,
 } from "../src/source-metadata.mjs";
+import { reconstructTemporalInfluencePath } from "../src/temporal-paths.mjs";
 import {
   applyNegativeEvidenceScore,
   detectNegativeEvidence,
@@ -234,6 +235,24 @@ if (sourceReliabilityScore({ source_type: "survey/self-report", snippet: "I reme
 }
 if (enrichSourceMetadata({ url: "https://example.com/article", title: "A long article about founder execution" }).source_strength_score <= 0) {
   throw new Error("Expected source metadata enrichment to include source strength.");
+}
+
+const timeline = reconstructTemporalInfluencePath({
+  thought: "I need to build before applying",
+  thought_at: "2026-05-02T12:00:00.000Z",
+  exposures: [
+    { id: "exp:1", label: "Do Things that Don't Scale", occurred_at: "2026-05-01T09:00:00.000Z", evidence_id: "evidence:pg", score: 0.7 },
+    { id: "exp:2", label: "Founder execution video", occurred_at: "2026-05-02T09:00:00.000Z", evidence_id: "evidence:yt", score: 0.9 },
+  ],
+  searches: [
+    { id: "search:1", query: "startup school apply", occurred_at: "2026-05-02T10:00:00.000Z", evidence_id: "evidence:search", score: 0.6 },
+  ],
+});
+if (timeline.summary.exposure_count !== 2 || !timeline.summary.evidence_ids.includes("evidence:pg")) {
+  throw new Error("Expected temporal path to cite exposure evidence.");
+}
+if (!timeline.timeline.some((event) => event.type === "first_exposure") || !timeline.timeline.some((event) => event.type === "user_entered_thought")) {
+  throw new Error("Expected temporal path to include first exposure and thought events.");
 }
 
 const pathClaim = claimFromInfluencePath(sampleInfluencePath);

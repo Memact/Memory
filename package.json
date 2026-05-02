@@ -17,6 +17,7 @@
     "./scoring": "./src/scoring.mjs",
     "./source-metadata": "./src/source-metadata.mjs",
     "./storage": "./src/storage.mjs",
+    "./temporal-paths": "./src/temporal-paths.mjs",
     "./cli": "./src/cli.mjs"
   },
   "keywords": [
