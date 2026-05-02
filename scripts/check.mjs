@@ -50,6 +50,12 @@ import {
   indexEvidenceLinks,
 } from "../src/evidence-links.mjs";
 import {
+  attachGraphSnapshot,
+  createGraphSnapshot,
+  diffGraphSnapshots,
+  listGraphSnapshots,
+} from "../src/graph-snapshots.mjs";
+import {
   applyInfluenceCategory,
   categorizeInfluenceLink,
   explainInfluenceCategory,
@@ -358,6 +364,27 @@ if (!memory.schema_packets.length) {
 
 if (!memory.graph.nodes.length || !memory.graph.edges.length) {
   throw new Error("Expected memory graph.");
+}
+
+const snapshotA = createGraphSnapshot(memory, {
+  label: "initial sample graph",
+  created_at: "2026-05-01T10:00:00.000Z",
+});
+const snapshotStore = attachGraphSnapshot(memory, {
+  label: "sample graph update",
+  created_at: "2026-05-02T10:00:00.000Z",
+  retention: 2,
+});
+if (!snapshotA.node_count || listGraphSnapshots(snapshotStore).length !== 1) {
+  throw new Error("Expected historical graph snapshot creation and retrieval.");
+}
+const snapshotDiff = diffGraphSnapshots(snapshotA, {
+  ...snapshotA,
+  snapshot_id: "graph_snapshot:next",
+  nodes: [...snapshotA.nodes, { id: "memory:theme:new", type: "theme_memory" }],
+});
+if (!snapshotDiff.added_nodes.includes("memory:theme:new")) {
+  throw new Error("Expected graph snapshot diff to expose newly emerged nodes.");
 }
 
 const retrieval = retrieveMemories("why do I want to build something real", memory);
