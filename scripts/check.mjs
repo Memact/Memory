@@ -31,6 +31,14 @@ import {
   validateThoughtTrace,
 } from "../src/core-schemas.mjs";
 import {
+  claimFromInfluencePath,
+  claimsForEvidence,
+  createClaim,
+  createUnknownOriginClaim,
+  indexClaims,
+  linkClaimEvidence,
+} from "../src/claims.mjs";
+import {
   attachEvidenceToClaim,
   collectEvidenceLinksFromMemory,
   createEvidenceLink,
@@ -170,6 +178,36 @@ const sampleInfluencePath = buildInfluencePathFromMemory({
 });
 if (!validateInfluencePath(sampleInfluencePath).ok || sampleInfluencePath.steps.length !== 5) {
   throw new Error("Expected explicit evidence-backed influence path.");
+}
+
+const pathClaim = claimFromInfluencePath(sampleInfluencePath);
+if (!pathClaim.ok || !pathClaim.claim.supporting_evidence_ids.includes("evidence:pg")) {
+  throw new Error("Expected influence path to produce a supported claim.");
+}
+
+const unknownClaim = createUnknownOriginClaim("why am I thinking about moving cities");
+if (!unknownClaim.ok || unknownClaim.claim.claim_type !== "unknown_origin") {
+  throw new Error("Expected unknown-origin claim to be valid without evidence.");
+}
+
+const linkedClaim = linkClaimEvidence(pathClaim.claim, ["evidence:extra"], {
+  contradicted_by_evidence_ids: ["evidence:conflict"],
+});
+if (!linkedClaim.supporting_evidence_ids.includes("evidence:extra") || !linkedClaim.contradicted_by_evidence_ids.includes("evidence:conflict")) {
+  throw new Error("Expected claims to track supporting and contradicting evidence separately.");
+}
+
+const claimIndex = indexClaims([pathClaim.claim, linkedClaim]);
+if (!claimIndex.has(pathClaim.claim.claim_id)) {
+  throw new Error("Expected claims to be indexable.");
+}
+
+if (!claimsForEvidence("evidence:pg", [pathClaim.claim]).length) {
+  throw new Error("Expected evidence to resolve back to claims.");
+}
+
+if (createClaim({ claim_type: "possible_influence", text: "unsupported claim" }).ok) {
+  throw new Error("Expected non-unknown claims without evidence to be rejected.");
 }
 
 if (!buildInfluencePathsForThought("why build something real", memory).length) {
