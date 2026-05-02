@@ -1,0 +1,187 @@
+{
+  "schema_version": "memact.influence_benchmarks.v1",
+  "scenarios": [
+    {
+      "id": "repeated_ad_then_thought",
+      "description": "User saw a steak deal ad repeatedly, then entered a matching thought.",
+      "thought": "Do I want Ruby Tuesday steak and shrimp this weekend?",
+      "thought_at": "2026-05-02T18:00:00.000Z",
+      "expected": {
+        "category": "algorithmic_repetition",
+        "has_influence_path": true,
+        "unknown_origin": false
+      },
+      "exposures": [
+        {
+          "title": "Ruby Tuesday steak and shrimp deal",
+          "url": "https://rubytuesday.example/deal",
+          "source_type": "ad",
+          "timestamp": "2026-05-01T10:00:00.000Z",
+          "evidence_id": "evidence:ruby:1",
+          "score": 0.72
+        },
+        {
+          "title": "Ruby Tuesday weekend special",
+          "url": "https://ads.example/ruby-tuesday",
+          "source_type": "ad",
+          "timestamp": "2026-05-01T18:00:00.000Z",
+          "evidence_id": "evidence:ruby:2",
+          "score": 0.69
+        },
+        {
+          "title": "For you: steak and shrimp nearby",
+          "url": "https://feed.example/recommendation",
+          "source_type": "social_media_post",
+          "timestamp": "2026-05-02T14:00:00.000Z",
+          "evidence_id": "evidence:ruby:3",
+          "score": 0.74
+        }
+      ]
+    },
+    {
+      "id": "thought_before_exposure",
+      "description": "The thought predates the exposure, so the later source must weaken the claim.",
+      "thought": "I should apply to Startup School.",
+      "thought_at": "2026-05-01T08:00:00.000Z",
+      "expected": {
+        "negative_evidence": "thought_predates_exposure",
+        "unknown_origin": true
+      },
+      "exposures": [
+        {
+          "title": "Startup School apply now",
+          "url": "https://startupschool.org",
+          "source_type": "article",
+          "timestamp": "2026-05-02T09:00:00.000Z",
+          "evidence_id": "evidence:ss:late",
+          "score": 0.8
+        }
+      ]
+    },
+    {
+      "id": "multiple_possible_origins",
+      "description": "A friend message and an article both plausibly connect to the thought.",
+      "thought": "I should build in public.",
+      "thought_at": "2026-05-02T10:00:00.000Z",
+      "expected": {
+        "has_competing_origins": true
+      },
+      "exposures": [
+        {
+          "title": "Friend said: post your progress daily",
+          "url": "memact://chat/friend",
+          "source_type": "chat_message",
+          "timestamp": "2026-05-01T09:00:00.000Z",
+          "evidence_id": "evidence:friend:build-public",
+          "score": 0.84
+        },
+        {
+          "title": "Build in public guide",
+          "url": "https://example.com/build-public",
+          "source_type": "article",
+          "timestamp": "2026-05-01T11:00:00.000Z",
+          "evidence_id": "evidence:article:build-public",
+          "score": 0.75
+        }
+      ]
+    },
+    {
+      "id": "no_origin_found",
+      "description": "No source overlaps enough to name a digital origin.",
+      "thought": "I want to learn pottery.",
+      "thought_at": "2026-05-02T10:00:00.000Z",
+      "expected": {
+        "unknown_origin": true
+      },
+      "exposures": [
+        {
+          "title": "GPU driver settings",
+          "url": "https://example.com/gpu",
+          "source_type": "web_page",
+          "timestamp": "2026-05-01T09:00:00.000Z",
+          "evidence_id": "evidence:gpu",
+          "score": 0.21
+        }
+      ]
+    },
+    {
+      "id": "misleading_phrase_overlap",
+      "description": "Surface wording overlaps but the topic is different.",
+      "thought": "I feel behind everyone.",
+      "thought_at": "2026-05-02T10:00:00.000Z",
+      "expected": {
+        "unknown_origin": true
+      },
+      "exposures": [
+        {
+          "title": "Behind the scenes of a concert",
+          "url": "https://example.com/concert",
+          "source_type": "article",
+          "timestamp": "2026-05-01T10:00:00.000Z",
+          "evidence_id": "evidence:behind-scenes",
+          "score": 0.25
+        }
+      ]
+    },
+    {
+      "id": "semantic_match_without_exact_words",
+      "description": "The source and thought connect semantically even without exact wording.",
+      "thought": "I need to prove I can execute.",
+      "thought_at": "2026-05-02T10:00:00.000Z",
+      "expected": {
+        "has_influence_path": true,
+        "category": "decision_cue"
+      },
+      "exposures": [
+        {
+          "title": "Founders should create evidence through shipped projects",
+          "url": "https://paulgraham.example/do-things",
+          "source_type": "article",
+          "timestamp": "2026-05-01T10:00:00.000Z",
+          "evidence_id": "evidence:execute",
+          "score": 0.78
+        }
+      ]
+    },
+    {
+      "id": "survey_only_thought",
+      "description": "User gave self-report context without captured digital evidence.",
+      "thought": "I keep thinking about changing research direction.",
+      "thought_at": "2026-05-02T10:00:00.000Z",
+      "expected": {
+        "category": "self_reported_origin"
+      },
+      "exposures": [
+        {
+          "title": "User self-report: mentor feedback changed my direction",
+          "url": "memact://survey/self-report",
+          "source_type": "survey/self-report",
+          "timestamp": "2026-05-02T09:30:00.000Z",
+          "evidence_id": "evidence:survey:research",
+          "score": 0.7
+        }
+      ]
+    },
+    {
+      "id": "private_sensitive_source_excluded",
+      "description": "Sensitive portal should not enter cloud or influence explanation payload.",
+      "thought": "I am worried about my health.",
+      "thought_at": "2026-05-02T10:00:00.000Z",
+      "expected": {
+        "excluded_from_ai": true,
+        "unknown_origin": true
+      },
+      "exposures": [
+        {
+          "title": "Patient portal lab result",
+          "url": "https://medical.example/patient/labs",
+          "source_type": "medical_portal",
+          "timestamp": "2026-05-01T10:00:00.000Z",
+          "evidence_id": "evidence:medical:private",
+          "score": 0.9,
+          "sensitive": true
+        }
+      ]
+    }
+  ]
+}

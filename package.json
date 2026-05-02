@@ -43,6 +43,7 @@
     "memact-memory": "./src/cli.mjs"
   },
   "scripts": {
+    "benchmarks": "node ./scripts/benchmarks.mjs",
     "check": "node ./scripts/check.mjs",
     "memory": "node ./src/cli.mjs",
     "sample": "node ./src/cli.mjs --inference examples/sample-inference-output.json --schema examples/sample-schema-output.json --format report",
