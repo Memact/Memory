@@ -16,9 +16,11 @@ Memory does not capture browser data, infer meaning from raw pages, or generate 
 
 - Stores meaningful activity memories.
 - Stores virtual cognitive-schema memories.
+- Stores first-class memory nodes, memory edges, evidence links, claims, and influence paths.
 - Stores source/theme links used for retrieval.
 - Exposes CRUD APIs.
 - Builds compact RAG context for Website/API answers.
+- Tracks confidence breakdowns, negative evidence, competing origins, graph snapshots, and source metadata.
 - Tracks memory actions such as reinforcement, weakening, assimilation, accommodation, supersession, and forgetting.
 - Keeps provenance so retrieved context can be traced back to evidence.
 
@@ -39,6 +41,15 @@ Memory does not capture browser data, infer meaning from raw pages, or generate 
 - `memory_graph`
   Typed links between memories, sources, themes, schemas, and future queries.
 
+- `evidence_link`
+  A source URL, timestamp, snippet, score, and claim support record.
+
+- `influence_path`
+  Ordered steps from exposure to content unit, concept, schema, and thought match.
+
+- `claim`
+  An inferred statement separated from raw evidence and final wording.
+
 ## Main APIs
 
 ```text
@@ -52,11 +63,15 @@ rememberSchema(schema)
 retrieveCognitiveSchemas(query)
 retrieveMemories(query)
 buildRagContext(query, memoryStore)
+createEvidenceLink(evidence)
+buildInfluencePathsForThought(thought, memoryStore)
+createClaim(claim)
 relateMemories(a, b, relation)
 reinforceMemory(id, evidence)
 weakenMemory(id, reason)
 forgetMemory(id)
 getMemoryGraph()
+createGraphSnapshot(memoryStore)
 ```
 
 ## RAG Context
@@ -75,6 +90,21 @@ getMemoryGraph()
 ```
 
 The context is intentionally small. If an external model is used later, it should receive this context instead of the full captured activity store.
+
+## Evidence Authority
+
+Memory treats evidence and graph objects as the source of truth.
+
+AI can help word an answer later, but it should not invent sources, causes, or claims that are absent from:
+
+- evidence links
+- memory nodes
+- memory edges
+- influence paths
+- claims
+- graph snapshots
+
+Unknown origin is a valid result when support is weak.
 
 ## Run Locally
 
@@ -99,6 +129,12 @@ Run sample:
 
 ```powershell
 npm run sample
+```
+
+Run influence benchmarks:
+
+```powershell
+npm run benchmarks
 ```
 
 Mermaid graph sample:
