@@ -11,6 +11,7 @@
     "./claims": "./src/claims.mjs",
     "./core-schemas": "./src/core-schemas.mjs",
     "./evidence-links": "./src/evidence-links.mjs",
+    "./influence-categories": "./src/influence-categories.mjs",
     "./influence-paths": "./src/influence-paths.mjs",
     "./negative-evidence": "./src/negative-evidence.mjs",
     "./scoring": "./src/scoring.mjs",

@@ -46,6 +46,12 @@ import {
   indexEvidenceLinks,
 } from "../src/evidence-links.mjs";
 import {
+  applyInfluenceCategory,
+  categorizeInfluenceLink,
+  explainInfluenceCategory,
+  INFLUENCE_CATEGORIES,
+} from "../src/influence-categories.mjs";
+import {
   buildInfluencePathFromMemory,
   buildInfluencePathsForThought,
   validateInfluencePath,
@@ -187,6 +193,25 @@ const sampleInfluencePath = buildInfluencePathFromMemory({
 });
 if (!validateInfluencePath(sampleInfluencePath).ok || sampleInfluencePath.steps.length !== 5) {
   throw new Error("Expected explicit evidence-backed influence path.");
+}
+if (!sampleInfluencePath.category || !sampleInfluencePath.influence_category) {
+  throw new Error("Expected influence paths to carry a stored influence category.");
+}
+
+const repeatedCategory = categorizeInfluenceLink({
+  thought: "why do startup videos keep making me want to build",
+  repetition_count: 4,
+});
+if (repeatedCategory !== INFLUENCE_CATEGORIES.REPEATED_TOPIC_EXPOSURE) {
+  throw new Error("Expected repeated exposure to assign repeated-topic category.");
+}
+
+const selfReported = applyInfluenceCategory({
+  thought: "I want to switch research direction",
+  source_type: "survey/self-report",
+});
+if (selfReported.category !== INFLUENCE_CATEGORIES.SELF_REPORTED_ORIGIN || !explainInfluenceCategory(selfReported.category)) {
+  throw new Error("Expected self-report influence links to be categorized and explainable.");
 }
 
 const pathClaim = claimFromInfluencePath(sampleInfluencePath);

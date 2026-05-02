@@ -1,3 +1,5 @@
+import { categorizeInfluenceLink } from "./influence-categories.mjs";
+
 function normalize(value, maxLength = 0) {
   const text = String(value ?? "").replace(/\s+/g, " ").trim();
   if (!text) return "";
@@ -52,11 +54,15 @@ export function createInfluencePath({
     ...normalizedSteps.flatMap((step) => step.evidence_ids),
   ]);
   const id = normalize(path_id, 180) || `influence_path:${slug([thought, ...normalizedSteps.map((step) => step.label)].join("_"))}`;
+  const resolvedCategory = category && category !== "unclassified"
+    ? normalize(category, 100)
+    : categorizeInfluenceLink({ thought, steps: normalizedSteps, summary });
   return {
     schema_version: "memact.influence_path.v1",
     path_id: id,
     thought: normalize(thought, 600),
-    category: normalize(category, 100),
+    category: resolvedCategory,
+    influence_category: resolvedCategory,
     uncertainty: normalize(uncertainty, 80) || "possible",
     confidence: Number(clamp01(confidence, averageWeight(normalizedSteps)).toFixed(4)),
     evidence_ids: allEvidenceIds,
