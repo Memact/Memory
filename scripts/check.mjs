@@ -37,6 +37,11 @@ import {
   evidenceLinksForClaim,
   indexEvidenceLinks,
 } from "../src/evidence-links.mjs";
+import {
+  buildInfluencePathFromMemory,
+  buildInfluencePathsForThought,
+  validateInfluencePath,
+} from "../src/influence-paths.mjs";
 import { createMemoryRepository, createRemoteMemoryAdapter } from "../src/storage.mjs";
 
 const inference = JSON.parse(await readFile(new URL("../examples/sample-inference-output.json", import.meta.url), "utf8"));
@@ -137,6 +142,38 @@ if (!memory.memories.length) {
 
 if (!collectEvidenceLinksFromMemory(memory, "claim:sample").length) {
   throw new Error("Expected memory store to serialize evidence links.");
+}
+
+const sampleInfluencePath = buildInfluencePathFromMemory({
+  thought: "I need to build something real",
+  source: {
+    title: "Do Things that Don't Scale",
+    url: "https://paulgraham.com/ds.html",
+    evidence_id: "evidence:pg",
+    score: 0.9,
+  },
+  contentUnit: {
+    unit_id: "u1",
+    packet_id: "packet:pg",
+    text: "Founders should do direct things manually.",
+    evidence_id: "evidence:pg",
+    score: 0.84,
+  },
+  concept: "founder execution",
+  schema: {
+    id: "schema:builder",
+    label: "Builder execution frame",
+    strength: 0.8,
+    evidence_packet_ids: ["packet:pg"],
+  },
+  thoughtScore: 0.76,
+});
+if (!validateInfluencePath(sampleInfluencePath).ok || sampleInfluencePath.steps.length !== 5) {
+  throw new Error("Expected explicit evidence-backed influence path.");
+}
+
+if (!buildInfluencePathsForThought("why build something real", memory).length) {
+  throw new Error("Expected influence paths to be derivable from schema memories.");
 }
 
 if (!memory.schema_packets.length) {
