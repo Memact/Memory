@@ -39,6 +39,10 @@ import {
   linkClaimEvidence,
 } from "../src/claims.mjs";
 import {
+  buildCompetingOriginSet,
+  detectOriginContradictions,
+} from "../src/competing-origins.mjs";
+import {
   attachEvidenceToClaim,
   collectEvidenceLinksFromMemory,
   createEvidenceLink,
@@ -283,6 +287,31 @@ if (!claimsForEvidence("evidence:pg", [pathClaim.claim]).length) {
 
 if (createClaim({ claim_type: "possible_influence", text: "unsupported claim" }).ok) {
   throw new Error("Expected non-unknown claims without evidence to be rejected.");
+}
+
+const competingSet = buildCompetingOriginSet({
+  thought: "why do I want to apply now",
+  thought_at: "2026-05-02T10:00:00.000Z",
+  claims: [
+    { claim_id: "claim:friend", claim_type: "possible_origin", confidence: 0.82, supporting_evidence_ids: ["evidence:friend"] },
+    { claim_id: "claim:ad", claim_type: "possible_origin", confidence: 0.51, supporting_evidence_ids: ["evidence:ad"] },
+    { claim_id: "claim:late", claim_type: "possible_origin", confidence: 0.6, supporting_evidence_ids: ["evidence:late"] },
+  ],
+  evidence: [
+    { evidence_id: "evidence:friend", timestamp: "2026-05-01T10:00:00.000Z" },
+    { evidence_id: "evidence:ad", timestamp: "2026-05-01T12:00:00.000Z" },
+    { evidence_id: "evidence:late", timestamp: "2026-05-03T12:00:00.000Z" },
+  ],
+});
+if (!competingSet.has_competing_origins || competingSet.primary_claim_id !== "claim:friend") {
+  throw new Error("Expected competing origins to preserve ranked claim alternatives.");
+}
+if (!detectOriginContradictions({
+  thought_at: "2026-05-02T10:00:00.000Z",
+  claims: competingSet.claims,
+  evidence: [{ evidence_id: "evidence:late", timestamp: "2026-05-03T12:00:00.000Z" }],
+}).some((item) => item.type === "thought_predates_exposure")) {
+  throw new Error("Expected contradiction detection for thought predating exposure.");
 }
 
 const confidence = decomposeInfluenceConfidence({
