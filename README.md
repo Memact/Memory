@@ -12,6 +12,10 @@ decide what survives and retrieve it later
 
 Memory does not capture browser data, infer meaning from raw pages, or generate final answers. It stores, updates, retrieves, links, weakens, and forgets memory records.
 
+Access decides who can ask Memact to perform work. Memory should not expose raw
+nodes, edges, evidence, or graph reads unless Access has granted the app an
+appropriate scope.
+
 ## What This Repo Owns
 
 - Stores meaningful activity memories.
@@ -90,6 +94,18 @@ createGraphSnapshot(memoryStore)
 ```
 
 The context is intentionally small. If an external model is used later, it should receive this context instead of the full captured activity store.
+
+## API Boundary
+
+Apps should use Memact to capture allowed activity, form schemas, and retrieve
+permitted summaries. Apps should not receive a blanket export of a user's
+memory graph.
+
+Access scopes define what can leave Memory:
+
+- `memory:read_summary` for compact memory summaries
+- `memory:read_evidence` for cited evidence cards
+- `memory:read_graph` for permitted nodes and edges
 
 ## Evidence Authority
 
