@@ -184,7 +184,11 @@ npm run memory -- --inference path\to\inference.json --schema path\to\schema.jso
 
 ## Storage Boundary
 
-The current implementation is local. Storage adapters are shaped so cloud storage can be added later without changing Memory's public contract.
+The current implementation is local. Storage adapters are shaped so user-owned
+cloud storage can be added later for cross-platform sync without changing
+Memory's public contract. That future adapter layer is for a user's own storage
+choice, such as Google Drive, iCloud, Dropbox, self-hosted S3, or another
+personal backend, not for turning Memact into a central raw-data warehouse.
 
 ## License
 
