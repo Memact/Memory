@@ -14,7 +14,9 @@ import {
   readMemory,
   reinforceMemory,
   relateMemories,
+  rememberIntent,
   retrieveCognitiveSchemas,
+  retrieveIntents,
   retrieveMemories,
   supersedeMemory,
   updateMemory,
@@ -364,6 +366,46 @@ if (!memory.schema_packets.length) {
 
 if (!memory.graph.nodes.length || !memory.graph.edges.length) {
   throw new Error("Expected memory graph.");
+}
+
+const rememberedIntent = rememberIntent({
+  schema_version: "memact.intent.v0",
+  generated_at: "2026-05-17T10:10:00.000Z",
+  predicted_intents: [
+    {
+      id: "intent:compare_sources",
+      label: "User appears to be comparing sources",
+      category: "web:research",
+      confidence: 0.72,
+      confidence_level: "medium",
+      confidence_basis: ["Compared documentation pages"],
+      evidence: [
+        {
+          evidence_id: "evidence:compare:sources",
+          label: "Read multiple API integration documents",
+          source_id: "packet:research:docs",
+          timestamp: "2026-05-17T10:00:00.000Z",
+        },
+      ],
+      alternative_intents: ["debugging an integration"],
+      allowed_actions: ["Offer a source comparison"],
+      blocked_actions: ["Treat the hypothesis as fact"],
+      notes: ["Intent is a hypothesis, not a fact."],
+    },
+  ],
+  safety: {
+    raw_captures_exposed: false,
+    user_confirmation_required: true,
+  },
+}, memory);
+if (!rememberedIntent.action.accepted || rememberedIntent.memories[0].type !== "intent_memory") {
+  throw new Error("Expected intent results to become first-class intent memory.");
+}
+if (!rememberedIntent.memoryStore.intent_memories.length) {
+  throw new Error("Expected memory store to index intent memories.");
+}
+if (!retrieveIntents("comparing sources", rememberedIntent.memoryStore).length) {
+  throw new Error("Expected stored intent memories to be retrievable.");
 }
 
 const snapshotA = createGraphSnapshot(memory, {
