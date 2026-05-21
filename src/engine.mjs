@@ -853,6 +853,63 @@ export function rememberPacket(packet, memoryStore = {}, options = {}) {
   return { memoryStore: next, action };
 }
 
+export function rememberInferenceRecord(record, memoryStore = {}, options = {}) {
+  return rememberPacket(record, memoryStore, options)
+}
+
+export function rememberSchemaPacket(packet, memoryStore = {}) {
+  return rememberSchema(packet, memoryStore)
+}
+
+export function rememberFeatureOutput(output = {}, memoryStore = {}) {
+  const featureId = normalize(output.feature_id || output.featureId || "feature", 120)
+  const memory = normalizeMemoryInput({
+    id: `memory:feature:${slug(`${featureId}_${Date.now()}`)}`,
+    type: "feature_output_memory",
+    label: normalize(output.name || featureId, 160),
+    summary: normalize(output.summary || JSON.stringify(output.output || {}).slice(0, 300), 360),
+    strength: clamp(output.confidence ?? 0.6),
+    feature_id: featureId,
+    feature_refs: [featureId],
+    provenance: { system: "studio", claim_type: "feature_output" },
+    state: "active",
+  })
+  return createMemory(memory, memoryStore)
+}
+
+export function listMemoryRecords(filter = {}, memoryStore = {}) {
+  return (memoryStore.memories || []).filter((memory) => {
+    if (filter.type && memory.type !== filter.type) return false
+    if (filter.state && memory.state !== filter.state) return false
+    return true
+  })
+}
+
+export function retrieveContext(query, memoryStore = {}, options = {}) {
+  return buildRagContext(query, memoryStore, options)
+}
+
+export function retrieveSchemaPackets(filter = {}, memoryStore = {}) {
+  return listMemoryRecords({ ...filter, type: filter.type || "cognitive_schema_memory" }, memoryStore)
+}
+
+export function createCorrection(memoryId, correction = {}, memoryStore = {}) {
+  const action = makeAction("correction_record", memoryId, correction, true, "user correction recorded")
+  return applyMemoryAction(memoryStore, action, (memory) => ({
+    ...memory,
+    corrections: [...(memory.corrections || []), { ...correction, created_at: nowIso() }],
+    strength: clamp(Number(memory.strength || 0) + 0.02),
+  }))
+}
+
+export function buildContextForFeature(featureId, memoryStore = {}, options = {}) {
+  return {
+    feature_id: normalize(featureId),
+    context: retrieveContext(options.query || featureId, memoryStore, options),
+    schema_packets: retrieveSchemaPackets({}, memoryStore),
+  }
+}
+
 export function rememberSchema(schemaPacket, memoryStore = {}) {
   const memory = schemaMemoryFromSchema(schemaPacket);
   if (!memory) {

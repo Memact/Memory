@@ -2,7 +2,7 @@
   "name": "memact-memory",
   "private": true,
   "version": "0.0.0",
-  "description": "Durable memory layer for retained evidence, schema packets, and permissioned intent context.",
+  "description": "Durable context store for retained evidence, schema packets, feature outputs, and permissioned personalization state.",
   "license": "SEE LICENSE IN LICENSE",
   "type": "module",
   "main": "./src/engine.mjs",
@@ -25,7 +25,7 @@
   "keywords": [
     "memact",
     "memory",
-    "intent",
+    "context",
     "schema-packets",
     "meaning-packets",
     "provenance",
