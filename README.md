@@ -41,7 +41,6 @@ The v0 engine supports:
 - `retrieveMemories(query, memoryStore, options)`
 - `buildRagContext(query, memoryStore, options)`
 - `buildTaskContextPacket(options)`
-- `buildCapPacket(options)`
 - `TemplateContextWorker.run(packet)`
 - `rememberSchemaPacket(packet)`
 - `rememberFeatureOutput(output)` for compatibility with older feature output records
@@ -72,22 +71,6 @@ worker interface, but they should still receive only the packet, not the full
 memory store.
 
 See `docs/task-context-workers.md`.
-
-## CAP Packets
-
-CAP means Context Access Protocol. It is the app-facing pipe for approved
-context.
-
-An app sends a CAP request such as "dietary restrictions" or "preferred name."
-Memory only contributes approved field records. Pending proposals, raw capture
-events, full profile dumps, unrelated categories, and sensitive fields without
-explicit allowance are filtered out before a `memact.cap_packet.v0` packet is
-made.
-
-CAP packets include `allowed_context`, `missing_context`, and fixed forbidden
-protections. They are small by design. If a future local model or embedding
-worker is added, it should receive only the CAP packet, never the full memory
-store.
 
 ## Development
 

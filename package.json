@@ -21,7 +21,6 @@
     "./storage": "./src/storage.mjs",
     "./semantic-matching": "./src/semantic-matching.mjs",
     "./task-context-packet": "./src/task-context-packet.mjs",
-    "./cap-packet": "./src/cap-packet.mjs",
     "./context-worker": "./src/context-worker.mjs",
     "./temporal-paths": "./src/temporal-paths.mjs",
     "./cli": "./src/cli.mjs"

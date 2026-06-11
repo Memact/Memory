@@ -2,7 +2,6 @@ import test from "node:test"
 import assert from "node:assert/strict"
 import { TemplateContextWorker } from "../src/context-worker.mjs"
 import { buildContextForFeature, forgetMemory, rememberFeatureOutput, rememberInferenceRecord, rememberSchemaPacket, retrieveContext } from "../src/engine.mjs"
-import { buildCapPacket, retrieveApprovedContextFields } from "../src/cap-packet.mjs"
 import { semanticMatchingExamples } from "../src/semantic-matching.mjs"
 import { buildTaskContextPacket, filterApprovedTaskMemory } from "../src/task-context-packet.mjs"
 
@@ -169,69 +168,8 @@ test("template worker runs on packet without full memory access", async () => {
   assert.equal(result.output.fields["diet.allergy"], "peanuts")
 })
 
-test("template worker also runs on CAP packets without full memory access", async () => {
-  const packet = buildCapPacket({
-    cap_request: {
-      request_id: "cap_req_worker",
-      app_id: "food-app",
-      connection_id: "con_1",
-      purpose: "onboarding_prefill",
-      requested_categories: ["food"],
-      requested_context: [{ description: "food restrictions", required: true }]
-    },
-    approved_memory_records: [
-      { field_path: "diet.preference", value: "vegetarian", category: "food", status: "approved", sensitivity: "normal", allowed_app_ids: ["food-app"] }
-    ]
-  })
-  const worker = new TemplateContextWorker()
-  const result = await worker.run(packet)
-  assert.equal(result.status, "ok")
-  assert.equal(result.target_app_id, "food-app")
-  assert.equal(result.safety.memory_blind, true)
-  assert.equal(result.output.fields["diet.preference"], "vegetarian")
-})
-
 test("semantic matching examples include NutriPlan-friendly food restrictions mapping", () => {
   const example = semanticMatchingExamples.find((item) => item.app_field === "food restrictions")
   assert.ok(example)
   assert.deepEqual(example.memact_fields, ["diet.preference", "diet.allergy"])
-})
-
-test("CAP retrieval returns approved field memory only", () => {
-  const records = [
-    { field_path: "diet.preference", value: "vegetarian", category: "food", status: "approved", sensitivity: "normal", allowed_app_ids: ["food-app"] },
-    { field_path: "diet.allergy", value: "peanuts", category: "food", status: "pending", sensitivity: "sensitive", allowed_app_ids: ["food-app"] },
-    { field_path: "shopping.budget", value: "low", category: "shopping", status: "approved", sensitivity: "normal", allowed_app_ids: ["food-app"] },
-    { field_path: "raw_capture_events", value: "raw event dump", category: "food", status: "approved", sensitivity: "normal", allowed_app_ids: ["food-app"] }
-  ]
-  const approved = retrieveApprovedContextFields(records, {
-    app_id: "food-app",
-    requested_categories: ["food"]
-  })
-  assert.deepEqual(approved.map((item) => item.field_path), ["diet.preference"])
-})
-
-test("CAP packet includes allowed and missing context without full profile", () => {
-  const packet = buildCapPacket({
-    cap_request: {
-      request_id: "cap_req_1",
-      app_id: "food-app",
-      connection_id: "con_1",
-      purpose: "onboarding_prefill",
-      requested_categories: ["food"],
-      requested_context: [
-        { description: "food restrictions", required: true },
-        { description: "cuisine preference", required: false }
-      ]
-    },
-    approved_memory_records: [
-      { field_path: "diet.preference", value: "vegetarian", category: "food", status: "approved", sensitivity: "normal", allowed_app_ids: ["food-app"], confidence: 0.9 },
-      { field_path: "profile", value: { full_profile: true }, category: "all", status: "approved", sensitivity: "high", allowed_app_ids: ["food-app"] }
-    ]
-  })
-  assert.equal(packet.schema_version, "memact.cap_packet.v0")
-  assert.equal(packet.allowed_context.length, 1)
-  assert.equal(packet.allowed_context[0].field_path, "diet.preference")
-  assert.equal(packet.missing_context[0].description, "cuisine preference")
-  assert.deepEqual(packet.forbidden_context, ["full_profile", "raw_capture_events", "unapproved_memory"])
 })
