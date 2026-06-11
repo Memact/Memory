@@ -7,7 +7,8 @@ export class TemplateContextWorker {
   }
 
   async run(packet) {
-    const validation = validateTaskContextPacketShape(packet)
+    const isCapPacket = packet?.schema_version === "memact.cap_packet.v0"
+    const validation = isCapPacket ? validateCapPacketShape(packet) : validateTaskContextPacketShape(packet)
     if (!validation.ok) {
       return {
         status: "error",
@@ -21,7 +22,7 @@ export class TemplateContextWorker {
       status: "ok",
       worker_id: this.worker_id,
       purpose: packet.purpose,
-      target_app_id: packet.target_app_id,
+      target_app_id: packet.target_app_id || packet.app_id,
       connection_id: packet.connection_id,
       output: buildTemplateOutput(packet),
       safety: {
@@ -70,3 +71,21 @@ function buildTemplateOutput(packet) {
   }
 }
 
+function validateCapPacketShape(packet = {}) {
+  const errors = []
+  const required = ["schema_version", "packet_id", "request_id", "app_id", "connection_id", "purpose", "allowed_context", "missing_context", "forbidden_context", "retention", "requires_user_review", "created_at"]
+  for (const key of required) {
+    if (packet[key] === undefined || packet[key] === null || packet[key] === "") errors.push({ path: key, message: "Required field is missing." })
+  }
+  if (packet.schema_version !== "memact.cap_packet.v0") errors.push({ path: "schema_version", message: "Must be memact.cap_packet.v0." })
+  if (!Array.isArray(packet.allowed_context)) errors.push({ path: "allowed_context", message: "Expected array." })
+  if (!Array.isArray(packet.missing_context)) errors.push({ path: "missing_context", message: "Expected array." })
+  if (!Array.isArray(packet.forbidden_context)) errors.push({ path: "forbidden_context", message: "Expected array." })
+  for (const item of ["full_profile", "raw_capture_events", "unapproved_memory"]) {
+    if (Array.isArray(packet.forbidden_context) && !packet.forbidden_context.includes(item)) {
+      errors.push({ path: "forbidden_context", message: `Must include ${item}.` })
+    }
+  }
+  if (packet.retention !== "none") errors.push({ path: "retention", message: "Must be none." })
+  return errors.length ? { ok: false, errors } : { ok: true, value: packet }
+}

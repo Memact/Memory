@@ -44,7 +44,7 @@ function memorySource(memory) {
 
 function isApproved(memory) {
   const status = normalize(memory.status || memory.state || "accepted").toLowerCase()
-  return ["accepted", "active", "edited", "user_verified"].includes(status)
+  return ["accepted", "approved", "active", "edited", "user_verified"].includes(status)
 }
 
 function isAllowedForApp(memory, targetAppId) {
@@ -181,4 +181,3 @@ export function validateTaskContextPacketShape(packet = {}) {
   if (packet.requires_user_review !== true && packet.requires_user_review !== false) errors.push({ path: "requires_user_review", message: "Expected boolean." })
   return errors.length ? { ok: false, errors } : { ok: true, value: packet }
 }
-
