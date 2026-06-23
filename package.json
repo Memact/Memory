@@ -21,6 +21,7 @@
     "./field-encryption": "./src/field-encryption.mjs",
     "./postgres-statements": "./src/postgres-statements.mjs",
     "./memory-schemas": "./src/memory-schemas.mjs",
+    "./backup-restore": "./src/backup-restore.mjs",
     "./semantic-matching": "./src/semantic-matching.mjs",
     "./task-context-packet": "./src/task-context-packet.mjs",
     "./cap-packet": "./src/cap-packet.mjs",
@@ -47,13 +48,15 @@
     "node": ">=24"
   },
   "bin": {
-    "memact-memory": "./src/cli.mjs"
+    "memact-memory": "./src/cli.mjs",
+    "memact-memory-backup": "./scripts/memory-backup.mjs"
   },
   "scripts": {
     "benchmarks": "node ./scripts/benchmarks.mjs",
     "check": "node ./scripts/check.mjs",
     "test": "node --test test/*.test.mjs",
     "memory": "node ./src/cli.mjs",
+    "backup": "node ./scripts/memory-backup.mjs",
     "sample": "node ./src/cli.mjs --inference examples/sample-inference-output.json --schema examples/sample-schema-output.json --format report",
     "sample:json": "node ./src/cli.mjs --inference examples/sample-inference-output.json --schema examples/sample-schema-output.json --format json",
     "sample:graph": "node ./src/cli.mjs --inference examples/sample-inference-output.json --schema examples/sample-schema-output.json --format graph",
