@@ -166,7 +166,7 @@ function traversalCandidatesForRequestedField({
   // Pre-rank memories lexically to seed traversal (small cost: reuse lexicalScore).
   const seedLexical = memoryRecords
     .map((memory) => ({ memory, fieldPath: normalize(memory.field_path || memory.path || ""), score: lexicalScoreForRequestedField(requestedText, memory) }))
-    .filter((item) => item.fieldPath)
+    .filter((item) => item.fieldPath && item.score > 0)
     .sort((a, b) => b.score - a.score)
     .slice(0, Math.max(3, Math.min(8, frontierLimit)))
 
