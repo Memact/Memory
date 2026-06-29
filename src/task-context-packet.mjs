@@ -44,7 +44,9 @@ function memorySource(memory) {
 
 function isApproved(memory) {
   const status = normalize(memory.status || memory.state || "accepted").toLowerCase()
+  if (status === "quarantined") return false
   return ["accepted", "approved", "active", "edited", "user_verified"].includes(status)
+
 }
 
 function isAllowedForApp(memory, targetAppId) {

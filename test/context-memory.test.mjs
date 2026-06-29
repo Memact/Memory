@@ -235,3 +235,33 @@ test("CAP packet includes allowed and missing context without full profile", () 
   assert.equal(packet.missing_context[0].description, "cuisine preference")
   assert.deepEqual(packet.forbidden_context, ["full_profile", "raw_capture_events", "unapproved_memory"])
 })
+
+test("CAP build throws if quarantined memory is selected", () => {
+  assert.throws(() => {
+    buildCapPacket({
+      cap_request: {
+        request_id: "cap_req_quarantine",
+        app_id: "food-app",
+        connection_id: "con_1",
+        purpose: "onboarding_prefill",
+        requested_categories: ["food"],
+        requested_context: [{ description: "food restrictions", required: true }]
+      },
+      approved_memory_records: [
+        {
+          field_path: "diet.preference",
+          value: "vegetarian",
+          category: "food",
+          status: "quarantined",
+          quarantine_status: "quarantined",
+
+
+
+          sensitivity: "normal",
+          allowed_app_ids: ["food-app"]
+        }
+      ]
+    })
+  }, /Quarantined memory selected for CAP packet/)
+})
+

@@ -41,6 +41,16 @@ function memorySource(memory) {
   )
 }
 
+function isQuarantinedMemory(memory = {}) {
+  const statusRaw = memory.status ?? memory.state ?? memory.quarantine_status ?? ""
+  const status = normalize(statusRaw).toLowerCase()
+  return status === "quarantined"
+}
+
+
+
+
+
 function normalizeRequestedItem(item = {}) {
   if (typeof item === "string") {
     return { description: item, required: false }
@@ -59,6 +69,8 @@ function itemText(item) {
 
 export function retrieveApprovedContextFields(memoryRecords = [], capRequest = {}, options = {}) {
   const requestedCategories = capRequest.requested_categories || options.categories || []
+  // Note: strict quarantine boundary is enforced in buildCapPacket via selected-match checks.
+  // We intentionally do not throw here to keep this function focused on approval filtering.
   const approved = filterApprovedTaskMemory(memoryRecords, {
     target_app_id: capRequest.app_id,
     categories: requestedCategories,
@@ -67,6 +79,51 @@ export function retrieveApprovedContextFields(memoryRecords = [], capRequest = {
   })
   return approved
 }
+
+
+
+function selectCapMatchesOrThrowQuarantined(requested, approved, matchesByRequest) {
+  // Quarantined boundary must be enforced against both:
+  // - the selected match (best.memory)
+  // - and the available approved pool (approved)
+  // to ensure we never silently drop/alter quarantined records.
+  if (Array.isArray(approved)) {
+    for (const mem of approved) {
+      if (isQuarantinedMemory(mem)) {
+        const fieldPath = mem.field_path || mem.path || "<unknown_field>"
+        throw new TypeError(`Quarantined memory selected for CAP packet: field_path=${fieldPath}`)
+      }
+    }
+  }
+
+  const allowedByField = new Map()
+  const missing_context = []
+
+  requested.forEach((item, index) => {
+
+    const matches = matchesByRequest[index]?.matches || []
+    const best = matches[0]
+    if (!best) {
+      missing_context.push({
+        description: item.description,
+        field_hint: item.field_hint || undefined,
+        category_hint: item.category_hint || undefined,
+        required: item.required,
+        reason: "No approved matching memory."
+      })
+      return
+    }
+    const memory = best.memory
+    if (isQuarantinedMemory(memory)) {
+      const fieldPath = memory.field_path || memory.path || "<unknown_field>"
+      throw new TypeError(`Quarantined memory selected for CAP packet: field_path=${fieldPath}`)
+    }
+    if (!allowedByField.has(memory.field_path)) allowedByField.set(memory.field_path, { memory, score: best.score })
+  })
+
+  return { allowedByField, missing_context }
+}
+
 
 export function buildCapPacket({
   cap_request,
@@ -85,29 +142,23 @@ export function buildCapPacket({
     throw new TypeError("cap_request must include request_id, app_id, connection_id, and purpose.")
   }
 
+  // Use raw records for quarantined boundary checks (prevents silent leakage via upstream filters).
+  const rawMatchesByRequest = matchRequestedFields(requested.map(itemText), approved_memory_records, { threshold: 0.12 })
+  for (const result of rawMatchesByRequest) {
+    const best = result?.matches?.[0]
+    if (best?.memory && isQuarantinedMemory(best.memory)) {
+      const fieldPath = best.memory.field_path || best.memory.path || "<unknown_field>"
+      throw new TypeError(`Quarantined memory selected for CAP packet: field_path=${fieldPath}`)
+    }
+  }
+
   const approved = retrieveApprovedContextFields(approved_memory_records, cap_request, { allowedSensitiveFieldPaths })
   const matchesByRequest = matchRequestedFields(requested.map(itemText), approved, { threshold: 0.12 })
-  const allowedByField = new Map()
-  const missing_context = []
-
-  requested.forEach((item, index) => {
-    const matches = matchesByRequest[index]?.matches || []
-    const best = matches[0]
-    if (!best) {
-      missing_context.push({
-        description: item.description,
-        field_hint: item.field_hint || undefined,
-        category_hint: item.category_hint || undefined,
-        required: item.required,
-        reason: "No approved matching memory."
-      })
-      return
-    }
-    const memory = best.memory
-    if (!allowedByField.has(memory.field_path)) allowedByField.set(memory.field_path, { memory, score: best.score })
-  })
+  const { allowedByField, missing_context } = selectCapMatchesOrThrowQuarantined(requested, approved, matchesByRequest)
 
   const allowed_context = [...allowedByField.values()].map(({ memory, score }) => ({
+
+
     field_path: memory.field_path,
     value: memoryValue(memory),
     category: memory.category || "general",
