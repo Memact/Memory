@@ -197,6 +197,53 @@ test("semantic matching examples include NutriPlan-friendly food restrictions ma
   assert.deepEqual(example.memact_fields, ["diet.preference", "diet.allergy"])
 })
 
+test("multi-hop semantic matching can traverse related fields", async () => {
+  // Intuition: query mentions "running shoes".
+  // We expect the retrieval to traverse from fitness-related context into shopping size-related fields
+  // using category + token adjacency (all within the provided memoryRecords).
+  const { matchRequestedFields } = await import("../src/semantic-matching.mjs")
+
+  const memoryRecords = [
+
+    {
+      field_path: "fitness.profile.goal",
+      value: "run training",
+      category: "fitness",
+      label: "Fitness goal",
+      summary: "Running training"
+    },
+    {
+      field_path: "fitness.training_goal",
+      value: "marathon",
+      category: "fitness",
+      label: "Training goal",
+      summary: "marathon training"
+    },
+    {
+      field_path: "shopping.shoe_size",
+      value: "10.5",
+      category: "shopping",
+      label: "Shoe size",
+      summary: "US shoe size",
+      themes: ["running shoes"]
+    },
+    {
+      field_path: "shopping.shoe_type",
+      value: "running",
+      category: "shopping",
+      label: "Shoe type",
+      summary: "running shoes"
+    }
+  ]
+
+  const results = matchRequestedFields(["running shoes"], memoryRecords, { threshold: 0.08, maxHops: 2, candidateLimit: 10 })
+  const matches = results[0].matches.map((m) => m.memory.field_path)
+
+  // At least one fitness-side field and one shopping-side field should be surfaced.
+  assert.ok(matches.some((fp) => fp.startsWith("fitness.")), `Expected fitness field in matches, got: ${matches.join(", ")}`)
+  assert.ok(matches.some((fp) => fp.startsWith("shopping.")), `Expected shopping field in matches, got: ${matches.join(", ")}`)
+})
+
 test("CAP retrieval returns approved field memory only", () => {
   const records = [
     { field_path: "diet.preference", value: "vegetarian", category: "food", status: "approved", sensitivity: "normal", allowed_app_ids: ["food-app"] },
@@ -211,7 +258,8 @@ test("CAP retrieval returns approved field memory only", () => {
   assert.deepEqual(approved.map((item) => item.field_path), ["diet.preference"])
 })
 
-test("CAP packet includes allowed and missing context without full profile", () => {
+
+test("CAP packet includes allowed and missing context without full profile", async () => {
   const packet = buildCapPacket({
     cap_request: {
       request_id: "cap_req_1",
