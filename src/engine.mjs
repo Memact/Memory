@@ -159,25 +159,67 @@ function tokenSet(value) {
   );
 }
 
-function overlapScore(query, memory) {
-  const queryTokens = tokenSet(query);
-  if (!queryTokens.size) return 0;
-  const memoryTokens = tokenSet([
-    memory.label,
-    memory.summary,
-    memory.core_interpretation,
-    memory.action_tendency,
-    ...(memory.emotional_signature || []),
-    ...(memory.marker_categories || []),
-    ...(memory.matched_markers || []),
-    ...(memory.themes || []),
-    ...(memory.sources || []).map((source) => `${source.title} ${source.domain}`),
-  ].join(" "));
-  let overlap = 0;
-  for (const token of queryTokens) {
-    if (memoryTokens.has(token)) overlap += 1;
+// Lightweight fuzzy string similarity parser using Jaro-Winkler approximate alignment
+function calculateFuzzyMatchScore(stringA, stringB) {
+  const s1 = (stringA || "").toLowerCase().trim();
+  const s2 = (stringB || "").toLowerCase().trim();
+  
+  if (s1 === s2) return 1.0;
+  if (!s1 || !s2) return 0.0;
+
+  const matchWindow = Math.floor(Math.max(s1.length, s2.length) / 2) - 1;
+  const s1Matches = new Array(s1.length).fill(false);
+  const s2Matches = new Array(s2.length).fill(false);
+
+  let matches = 0;
+  let transpositions = 0;
+
+  for (let i = 0; i < s1.length; i++) {
+    const start = Math.max(0, i - matchWindow);
+    const end = Math.min(s2.length, i + matchWindow + 1);
+    
+    for (let j = start; j < end; j++) {
+      if (!s2Matches[j] && s1[i] === s2[j]) {
+        s1Matches[i] = true;
+        s2Matches[j] = true;
+        matches++;
+        break;
+      }
+    }
   }
-  return clamp(overlap / queryTokens.size);
+
+  if (matches === 0) return 0.0;
+
+  let k = 0;
+  for (let i = 0; i < s1.length; i++) {
+    if (s1Matches[i]) {
+      while (!s2Matches[k]) k++;
+      if (s1[i] !== s2[k]) transpositions++;
+      k++;
+    }
+  }
+
+  const jaro = (matches / s1.length + matches / s2.length + (matches - transpositions / 2) / matches) / 3;
+  return Number(jaro.toFixed(4));
+}
+
+// Update or extend the current overlapScore strategy to support fuzzy indexing queries
+export function overlapScore(query, memory) {
+  const queryString = String(query || "").trim();
+  const labelString = String(memory?.label || "").trim();
+  const summaryString = String(memory?.summary || "").trim();
+
+  // Primary exact checking passes
+  if (labelString.toLowerCase().includes(queryString.toLowerCase())) return 1.0;
+
+  // Fuzzy alignment resolution fallback for handling large-scale typos or partial queries
+  const labelFuzzy = calculateFuzzyMatchScore(queryString, labelString);
+  const summaryFuzzy = calculateFuzzyMatchScore(queryString, summaryString);
+
+  const highestFuzzyScore = Math.max(labelFuzzy, summaryFuzzy);
+  
+  // Return fuzzy matching score if it meets a reasonable confidence threshold (e.g., > 0.7)
+  return highestFuzzyScore > 0.7 ? highestFuzzyScore : 0.0;
 }
 
 function activityMemoryFromRecord(record, options = {}) {
