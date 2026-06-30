@@ -348,13 +348,28 @@ function decayMemory(memory, options = {}) {
   const ageDays = daysSince(memory.last_seen_at || memory.first_seen_at);
   const decay = Math.min(0.35, ageDays * decayPerDay);
   const decayedStrength = clamp(Number(memory.strength || 0) - decay);
+  
+  // Calculate automated TTL expiration trigger thresholds
+  let expirationReason = "";
+  let state = memory.state || "active";
+
+  if (ageDays >= 30) {
+    state = "forgotten";
+    expirationReason = `Inactive for ${Math.floor(ageDays)} days`;
+  } else if (decayedStrength <= Number(options.retentionThreshold ?? DEFAULT_RETENTION_THRESHOLD)) {
+    state = "forgotten";
+    expirationReason = `Memory retention strength fallen below threshold (${decayedStrength})`;
+  }
+
   return {
     ...memory,
+    state,
     strength: decayedStrength,
     decay: {
       age_days: Number(ageDays.toFixed(2)),
       decay_amount: Number(decay.toFixed(4)),
       decay_per_day: decayPerDay,
+      expiration_reason: expirationReason || null
     },
   };
 }
