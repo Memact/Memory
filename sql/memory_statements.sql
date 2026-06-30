@@ -32,3 +32,17 @@ CREATE INDEX IF NOT EXISTS memact_memory_statements_field_path_idx
 
 CREATE INDEX IF NOT EXISTS memact_memory_statements_sensitivity_idx
   ON memact_memory_statements (sensitivity);
+  
+CREATE TABLE IF NOT EXISTS memact_query_audit_trail (
+  id TEXT PRIMARY KEY,
+  client_id TEXT NOT NULL,
+  queried_path TEXT,
+  result_count INTEGER NOT NULL,
+  timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS memact_query_audit_trail_client_idx 
+  ON memact_query_audit_trail (client_id);
+
+CREATE INDEX IF NOT EXISTS memact_query_audit_trail_timestamp_idx 
+  ON memact_query_audit_trail (timestamp);

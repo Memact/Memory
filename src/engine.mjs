@@ -726,7 +726,12 @@ export function retrieveMemories(query, memoryStore, options = {}) {
   const top = Number(options.top ?? 8);
   const minScore = Number(options.minScore ?? 0.12);
   const memories = Array.isArray(memoryStore?.memories) ? memoryStore.memories : [];
-  return memories
+  
+  // Track client configuration context for audit verification
+  const clientId = normalize(options.clientId || options.appId || "unknown_client");
+  const queriedPath = normalize(options.fieldPath || options.path || "generic_query");
+
+  const results = memories
     .map((memory) => {
       const lexical = overlapScore(query, memory);
       const score = clamp((lexical * 0.56) + (Number(memory.strength || 0) * 0.34) + (isSchemaMemory(memory) ? 0.1 : 0));
@@ -741,6 +746,25 @@ export function retrieveMemories(query, memoryStore, options = {}) {
     .filter((memory) => memory.retrieval_score >= minScore)
     .sort((left, right) => right.retrieval_score - left.retrieval_score || right.strength - left.strength)
     .slice(0, top);
+
+  // Generate an atomic audit trail log payload matching the SQL structure
+  const auditEntry = {
+    id: `audit:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`,
+    client_id: clientId,
+    queried_path: queriedPath,
+    result_count: results.length,
+    timestamp: new Date().toISOString()
+  };
+
+  // Attach the compliance record to the resulting array object transparently 
+  // so wrappers can safely record it to database/state logs.
+  Object.defineProperty(results, "auditTrailLog", {
+    value: auditEntry,
+    writable: false,
+    enumerable: true
+  });
+
+  return results;
 }
 
 export function retrieveCognitiveSchemas(query, memoryStore, options = {}) {
