@@ -726,21 +726,62 @@ export function retrieveMemories(query, memoryStore, options = {}) {
   const top = Number(options.top ?? 8);
   const minScore = Number(options.minScore ?? 0.12);
   const memories = Array.isArray(memoryStore?.memories) ? memoryStore.memories : [];
-  return memories
+  
+  const clientId = normalize(options.clientId || options.appId || "unknown_client");
+  const queriedPath = normalize(options.fieldPath || options.path || "generic_query");
+  const currentCategory = options.auditContext?.currentCategory || null;
+
+  const results = memories
     .map((memory) => {
+      // Calculate discrete attribute matching components
       const lexical = overlapScore(query, memory);
-      const score = clamp((lexical * 0.56) + (Number(memory.strength || 0) * 0.34) + (isSchemaMemory(memory) ? 0.1 : 0));
+      
+      const lexicalWeight = lexical * 0.56;
+      const strengthWeight = Number(memory.strength || 0) * 0.34;
+      const schemaBonusWeight = isSchemaMemory(memory) ? 0.1 : 0.0;
+      
+      // Category attribute match boost
+      const categoryMatch = (currentCategory && memory.category === currentCategory) ? 1 : 0;
+      const categoryWeight = categoryMatch * 0.05;
+
+      const score = clamp(lexicalWeight + strengthWeight + schemaBonusWeight + categoryWeight);
+      
       return {
         ...memory,
         retrieval_score: score,
         retrieval_reason: lexical
-          ? "query overlap with retained memory"
-          : "high-strength retained memory",
+          ? "explicit attribute matching criteria met"
+          : "high-strength base memory matching",
+        // Explainable Context Ranking Profile
+        ranking_weights: {
+          lexical_overlap: Number(lexicalWeight.toFixed(4)),
+          memory_strength: Number(strengthWeight.toFixed(4)),
+          schema_bonus: Number(schemaBonusWeight.toFixed(4)),
+          category_alignment: Number(categoryWeight.toFixed(4)),
+          total_calculated_score: Number(score.toFixed(4))
+        }
       };
     })
     .filter((memory) => memory.retrieval_score >= minScore)
     .sort((left, right) => right.retrieval_score - left.retrieval_score || right.strength - left.strength)
     .slice(0, top);
+
+  // Generate an atomic audit trail log payload matching the SQL structure
+  const auditEntry = {
+    id: `audit:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`,
+    client_id: clientId,
+    queried_path: queriedPath,
+    result_count: results.length,
+    timestamp: new Date().toISOString()
+  };
+
+  Object.defineProperty(results, "auditTrailLog", {
+    value: auditEntry,
+    writable: false,
+    enumerable: true
+  });
+
+  return results;
 }
 
 export function retrieveCognitiveSchemas(query, memoryStore, options = {}) {
