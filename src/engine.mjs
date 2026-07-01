@@ -1,3 +1,5 @@
+import { auditContextLeakage } from "./audit.mjs";
+
 export const MEMORY_SCHEMA_VERSION = "memact.memory.v0";
 const DEFAULT_RETENTION_THRESHOLD = 0.34;
 const DEFAULT_DECAY_PER_DAY = 0.006;
@@ -727,14 +729,22 @@ export function retrieveMemories(query, memoryStore, options = {}) {
   const minScore = Number(options.minScore ?? 0.12);
   const memories = Array.isArray(memoryStore?.memories) ? memoryStore.memories : [];
   
+
   const clientId = normalize(options.clientId || options.appId || "unknown_client");
   const queriedPath = normalize(options.fieldPath || options.path || "generic_query");
   const currentCategory = options.auditContext?.currentCategory || null;
 
   const results = memories
+
+  // Extract audit parameters if provided in options
+  const auditContext = options.auditContext; // e.g., { currentCategory: 'urgency_cue', capabilities: [] }
+
+  return memories
+
     .map((memory) => {
       // Calculate discrete attribute matching components
       const lexical = overlapScore(query, memory);
+
       
       const lexicalWeight = lexical * 0.56;
       const strengthWeight = Number(memory.strength || 0) * 0.34;
@@ -747,6 +757,11 @@ export function retrieveMemories(query, memoryStore, options = {}) {
       const score = clamp(lexicalWeight + strengthWeight + schemaBonusWeight + categoryWeight);
       
       return {
+
+      const score = clamp((lexical * 0.56) + (Number(memory.strength || 0) * 0.34) + (isSchemaMemory(memory) ? 0.1 : 0));
+      
+      const BaseResult = {
+
         ...memory,
         retrieval_score: score,
         retrieval_reason: lexical
@@ -761,8 +776,23 @@ export function retrieveMemories(query, memoryStore, options = {}) {
           total_calculated_score: Number(score.toFixed(4))
         }
       };
+
+      // If an audit context is supplied, evaluate leakage across the query text and memory content
+      if (auditContext) {
+        const textToAudit = `${query} ${memory.label} ${memory.summary}`;
+        const audit = auditContextLeakage(auditContext, textToAudit);
+        
+        BaseResult.audit = {
+          leaked: audit.leaked,
+          violations: audit.violations
+        };
+      }
+
+      return BaseResult;
     })
     .filter((memory) => memory.retrieval_score >= minScore)
+    // Optional: You can filter out leaked items entirely if required, 
+    // or just pass them through with the audit flag attached for the worker to handle.
     .sort((left, right) => right.retrieval_score - left.retrieval_score || right.strength - left.strength)
     .slice(0, top);
 
