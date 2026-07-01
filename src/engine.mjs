@@ -1,3 +1,5 @@
+import { auditContextLeakage } from "./audit.mjs";
+
 export const MEMORY_SCHEMA_VERSION = "memact.memory.v0";
 const DEFAULT_RETENTION_THRESHOLD = 0.34;
 const DEFAULT_DECAY_PER_DAY = 0.006;
@@ -727,23 +729,46 @@ export function retrieveMemories(query, memoryStore, options = {}) {
   const minScore = Number(options.minScore ?? 0.12);
   const memories = Array.isArray(memoryStore?.memories) ? memoryStore.memories : [];
   
+
   // Track client configuration context for audit verification
   const clientId = normalize(options.clientId || options.appId || "unknown_client");
   const queriedPath = normalize(options.fieldPath || options.path || "generic_query");
 
   const results = memories
+
+  // Extract audit parameters if provided in options
+  const auditContext = options.auditContext; // e.g., { currentCategory: 'urgency_cue', capabilities: [] }
+
+  return memories
+
     .map((memory) => {
       const lexical = overlapScore(query, memory);
       const score = clamp((lexical * 0.56) + (Number(memory.strength || 0) * 0.34) + (isSchemaMemory(memory) ? 0.1 : 0));
-      return {
+      
+      const BaseResult = {
         ...memory,
         retrieval_score: score,
         retrieval_reason: lexical
           ? "query overlap with retained memory"
           : "high-strength retained memory",
       };
+
+      // If an audit context is supplied, evaluate leakage across the query text and memory content
+      if (auditContext) {
+        const textToAudit = `${query} ${memory.label} ${memory.summary}`;
+        const audit = auditContextLeakage(auditContext, textToAudit);
+        
+        BaseResult.audit = {
+          leaked: audit.leaked,
+          violations: audit.violations
+        };
+      }
+
+      return BaseResult;
     })
     .filter((memory) => memory.retrieval_score >= minScore)
+    // Optional: You can filter out leaked items entirely if required, 
+    // or just pass them through with the audit flag attached for the worker to handle.
     .sort((left, right) => right.retrieval_score - left.retrieval_score || right.strength - left.strength)
     .slice(0, top);
 
