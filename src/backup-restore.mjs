@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import { reindexMemoryStore, MEMORY_SCHEMA_VERSION } from "./engine.mjs";
 import { stripDerivedBackupFields, validateMemoryBackupShape } from "./memory-schemas.mjs";
 import {
@@ -153,4 +154,98 @@ export function parseEncryptedBackupJson(jsonText, key) {
     throw new MemoryBackupEnvelopeError(`Invalid backup envelope JSON: ${error.message}`);
   }
   return decryptMemoryBackup(envelope, key);
+}
+
+/* ==========================================================================
+   PARTIAL CONTEXT DATABASE UTILITIES (Issue #52 Implementation)
+   ========================================================================== */
+
+/**
+ * Partial Context Database Export
+ * Filters the memoryStore structures by a targeted namespace/category 
+ * and outputs an export package containing a secure verification digest.
+ */
+export function exportPartialNamespace(memoryStore = {}, category) {
+  if (!category) {
+    throw new TypeError("Partial export requires a specific namespace (category) string.");
+  }
+
+  const baseBackup = serializeMemoryBackup(memoryStore);
+  
+  // Filter core entries by matching the targeted namespace/category
+  const filteredMemories = baseBackup.memories.filter((m) => m.category === category);
+  const internalIds = new Set(filteredMemories.map((m) => m.id));
+
+  // Cleanly isolate intersecting relations/actions so we don't hold dangling graph records
+  const contextualFilter = (item) => 
+    (item.from === undefined || internalIds.has(item.from)) &&
+    (item.to === undefined || internalIds.has(item.to)) &&
+    (item.target_id === undefined || internalIds.has(item.target_id));
+
+  const packagePayload = {
+    version: "1.0",
+    category,
+    exported_at: new Date().toISOString(),
+    schema_version: baseBackup.schema_version,
+    data: {
+      memories: filteredMemories,
+      relations: baseBackup.relations.filter(contextualFilter),
+      actions: baseBackup.actions.filter(contextualFilter)
+    }
+  };
+
+  // Generate metadata digest for strict schema verification tracking
+  const payloadString = JSON.stringify(packagePayload.data);
+  const digest = createHash("sha256").update(payloadString).update(category).digest("hex");
+
+  return {
+    ...packagePayload,
+    digest
+  };
+}
+
+/**
+ * Partial Context Database Import
+ * Performs integrity digest verification on an export package before safely 
+ * feeding the items into an existing runtime memory store.
+ */
+export function importPartialNamespace(currentMemoryStore = {}, exportPackage = {}) {
+  const { category, data, digest } = exportPackage;
+
+  if (!category || !data || !digest) {
+    throw new MemoryBackupValidationError("Invalid partial context export package format.", []);
+  }
+
+  // Validate integrity metadata digest matches exactly
+  const payloadString = JSON.stringify(data);
+  const computedDigest = createHash("sha256").update(payloadString).update(category).digest("hex");
+
+  if (digest !== computedDigest) {
+    throw new MemoryBackupValidationError("Integrity check failed: Partial package digest mismatch.", []);
+  }
+
+  // Map out and initialize empty arrays if current data stores aren't set up yet
+  const targetStore = {
+    ...currentMemoryStore,
+    memories: Array.isArray(currentMemoryStore.memories) ? [...currentMemoryStore.memories] : [],
+    relations: Array.isArray(currentMemoryStore.relations) ? [...currentMemoryStore.relations] : [],
+    actions: Array.isArray(currentMemoryStore.actions) ? [...currentMemoryStore.actions] : [],
+  };
+
+  // Upsert records (overwrite existing IDs, add new ones)
+  const existingMemoryIds = new Map(targetStore.memories.map((m, idx) => [m.id, idx]));
+  for (const newMemory of (data.memories || [])) {
+    if (existingMemoryIds.has(newMemory.id)) {
+      targetStore.memories[existingMemoryIds.get(newMemory.id)] = newMemory;
+    } else {
+      targetStore.memories.push(newMemory);
+    }
+  }
+
+  // Safety append for relational context structures
+  if (Array.isArray(data.relations)) targetStore.relations.push(...data.relations);
+  if (Array.isArray(data.actions)) targetStore.actions.push(...data.actions);
+
+  // Return the newly indexed memory engine matrix state
+  return reindexMemoryStore(targetStore);
 }
