@@ -27,7 +27,8 @@
     "./cap-packet": "./src/cap-packet.mjs",
     "./context-worker": "./src/context-worker.mjs",
     "./temporal-paths": "./src/temporal-paths.mjs",
-    "./cli": "./src/cli.mjs"
+    "./cli": "./src/cli.mjs",
+    "./read-write-executor": "./src/read-write-executor.mjs"
   },
   "keywords": [
     "memact",
