@@ -3,6 +3,8 @@ const DEFAULT_RETENTION_THRESHOLD = 0.34;
 const DEFAULT_DECAY_PER_DAY = 0.006;
 const MAX_SOURCES = 8;
 const DEFAULT_RAG_TOP = 6;
+// Local query cache for repetitive app context queries
+const queryCache = new Map();
 
 export const MEMORY_RELATION_TYPES = Object.freeze({
   ASSIMILATES: "assimilates",
@@ -180,6 +182,38 @@ function overlapScore(query, memory) {
   return clamp(overlap / queryTokens.size);
 }
 
+/**
+ * Executes a query over the memory store using a local cache to optimize repetitive requests.
+ */
+export function queryContextWithCache(query, memories, options = {}) {
+  if (!query || !Array.isArray(memories)) return [];
+
+  // Generate a unique cache key based on the query text and current memory structure
+  const cacheKey = `${query}:${memories.map(m => `${m.id}-${m.strength}`).join(',')}`;
+
+  if (queryCache.has(cacheKey)) {
+    return queryCache.get(cacheKey);
+  }
+
+  // Cache miss: Calculate overlap scores across memories
+  const results = memories
+    .map((memory) => ({
+      memory,
+      score: overlapScore(query, memory)
+    }))
+    .filter((res) => res.score >= (options.threshold || 0.1))
+    .sort((a, b) => b.score - a.score);
+
+  queryCache.set(cacheKey, results);
+  return results;
+}
+
+/**
+ * Clears the query cache whenever the underlying memory database changes.
+ */
+export function clearQueryCache() {
+  queryCache.clear();
+}
 function activityMemoryFromRecord(record, options = {}) {
   const threshold = Number(options.retentionThreshold ?? DEFAULT_RETENTION_THRESHOLD);
   const sourcePacketId = normalize(record.packet_id || record.packet?.id || `packet:${record.id}`);
@@ -594,6 +628,8 @@ function normalizeMemoryInput(input = {}) {
 }
 
 export function buildMemoryStore({ inference, schema, intent, previousMemory = null, options = {} } = {}) {
+  // Clear the query cache since the store state is shifting
+  clearQueryCache();
   const activityMemories = (Array.isArray(inference?.records) ? inference.records : [])
     .map((record) => activityMemoryFromRecord(record, options))
     .filter(Boolean);
