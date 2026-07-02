@@ -821,19 +821,15 @@ export function retrieveMemories(query, memoryStore, options = {}) {
   const top = Number(options.top ?? 8);
   const minScore = Number(options.minScore ?? 0.12);
   const memories = Array.isArray(memoryStore?.memories) ? memoryStore.memories : [];
-  
 
   // Track client configuration context for audit verification
   const clientId = normalize(options.clientId || options.appId || "unknown_client");
   const queriedPath = normalize(options.fieldPath || options.path || "generic_query");
 
-  const results = memories
-
   // Extract audit parameters if provided in options
   const auditContext = options.auditContext; // e.g., { currentCategory: 'urgency_cue', capabilities: [] }
 
-  return memories
-
+  const results = memories
     .map((memory) => {
       const lexical = overlapScore(query, memory);
       const score = clamp((lexical * 0.56) + (Number(memory.strength || 0) * 0.34) + (isSchemaMemory(memory) ? 0.1 : 0));
